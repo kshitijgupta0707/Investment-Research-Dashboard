@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     alpha_vantage_api_key: str = ""
     newsapi_api_key: str = ""
 
+    # Budget for any single external call, before retry.
+    upstream_timeout_seconds: float = 10.0
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

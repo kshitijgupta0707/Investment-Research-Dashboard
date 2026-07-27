@@ -67,7 +67,13 @@ def as_service(cur: Any) -> None:
 
 
 class Tenants:
-    """Ids for the seeded two-organization fixture."""
+    """Ids for the seeded two-organization fixture.
+
+    Held as strings. psycopg2 returns uuid columns as either `str` or
+    `uuid.UUID` depending on whether its UUID loader has been registered --
+    global state that varies with import order -- so comparisons against raw
+    cursor output are otherwise order-dependent.
+    """
 
     def __init__(self) -> None:
         self.auth_ids: dict[str, str] = {}
@@ -87,9 +93,9 @@ def tenants(db: Any) -> Tenants:
     as_service(db)
 
     db.execute("insert into organizations (name) values ('Org A') returning id")
-    t.org_a = db.fetchone()[0]
+    t.org_a = str(db.fetchone()[0])
     db.execute("insert into organizations (name) values ('Org B') returning id")
-    t.org_b = db.fetchone()[0]
+    t.org_b = str(db.fetchone()[0])
 
     for key, org, role in [
         ("a_admin", t.org_a, "admin"),
@@ -103,7 +109,7 @@ def tenants(db: Any) -> Tenants:
                values (%s, %s, %s, %s) returning id""",
             (t.auth_ids[key], f"{key}@test.invalid", org, role),
         )
-        t.users[key] = db.fetchone()[0]
+        t.users[key] = str(db.fetchone()[0])
 
     for key, org in [("a1", t.org_a), ("a2", t.org_a), ("b1", t.org_b)]:
         db.execute(
@@ -111,7 +117,7 @@ def tenants(db: Any) -> Tenants:
                values (%s, %s, %s, %s) returning id""",
             (org, t.users[key], f"query by {key}", json.dumps({"summary": key})),
         )
-        t.reports[key] = db.fetchone()[0]
+        t.reports[key] = str(db.fetchone()[0])
 
     for key, org, ticker in [("a1", t.org_a, "NVDA"), ("a2", t.org_a, "AMD")]:
         db.execute(
