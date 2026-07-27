@@ -7,7 +7,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
+from app.middleware.errors import register_exception_handlers
 from app.routes import auth as auth_routes
+from app.routes import health as health_routes
+from app.schemas.envelope import Envelope, ok
 from app.utils.config import get_settings
 
 settings = get_settings()
@@ -37,9 +40,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+register_exception_handlers(app)
+
+app.include_router(health_routes.router)
 app.include_router(auth_routes.router)
 
 
-@app.get("/")
-async def root() -> dict[str, str]:
-    return {"service": "investment-research-dashboard-api", "version": app.version}
+@app.get("/", response_model=Envelope[dict[str, str]])
+async def root() -> Envelope[dict[str, str]]:
+    return ok({"service": "investment-research-dashboard-api", "version": app.version})

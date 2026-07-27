@@ -147,8 +147,9 @@ def test_valid_token_with_membership_resolves_context(
 ) -> None:
     response = me(client, account.token)
     assert response.status_code == 200
+    assert response.json()["success"] is True
 
-    body = response.json()
+    body = response.json()["data"]
     assert body["id"] == membership["user_id"], "should expose our users.id, not the auth id"
     assert body["auth_id"] == account.auth_id
     assert body["org_id"] == membership["org_id"]
@@ -167,4 +168,4 @@ def test_role_is_read_from_the_database_not_the_token(
     cur.close()
     conn.close()
 
-    assert me(client, account.token).json()["role"] == "admin"
+    assert me(client, account.token).json()["data"]["role"] == "admin"
