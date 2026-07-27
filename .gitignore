@@ -34,6 +34,11 @@ next-env.d.ts
 Thumbs.db
 desktop.ini
 
+# --- Local working notes ---
+NOTES.md
+CLAUDE.md
+PROJECT_PLAN.md
+
 # --- Logs ---
 *.log
 npm-debug.log*

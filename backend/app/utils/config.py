@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_secret_key: str = ""
     supabase_publishable_key: str = ""
-    supabase_jwt_secret: str = ""
+    supabase_jwks_url: str = ""
     database_url: str = ""
 
     anthropic_api_key: str = ""
