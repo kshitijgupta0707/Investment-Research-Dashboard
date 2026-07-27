@@ -10,6 +10,23 @@ from pydantic import BaseModel
 Role = Literal["admin", "analyst"]
 
 
+class AuthenticatedIdentity(BaseModel):
+    """A verified Supabase token, before any membership is known.
+
+    This is what signup sees: the caller has proved who they are, but has no
+    `users` row, no organization and no role yet. Every other endpoint wants
+    `CurrentUser` instead -- a caller with no membership has no tenant, and so
+    nothing to be authorised against.
+
+    `email` is optional because it is only needed on the provisioning path.
+    Everywhere else the address is read from the database, so a token without
+    the claim must not break an otherwise valid session.
+    """
+
+    auth_id: UUID
+    email: str | None = None
+
+
 class CurrentUser(BaseModel):
     """Resolved from the JWT plus the matching row in `users`.
 

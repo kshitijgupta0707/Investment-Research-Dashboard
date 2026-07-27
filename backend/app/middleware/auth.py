@@ -1,11 +1,20 @@
 """JWT verification and tenant context.
 
-Protected endpoints depend on `get_current_user`, which verifies the Supabase
-token and resolves the caller's organization and role *before* the handler runs.
-An invalid or expired token is rejected with 401 before any tenant data is read.
+Two dependencies, in layers:
 
-Supabase's `sb_*` keys sign asymmetrically, so verification fetches public keys
-from the project's JWKS endpoint rather than sharing a symmetric secret.
+* `get_authenticated_identity` -- the token is valid. Nothing more is claimed.
+* `get_current_user` -- the token is valid **and** the caller has a membership,
+  so an organization and role exist to authorise against.
+
+Almost everything wants the second. Signup wants the first, because a user
+creating an organization or redeeming an invite necessarily has no membership
+yet, and would otherwise be locked out of the only endpoints that could give
+them one.
+
+An invalid or expired token is rejected with 401 by both, before any tenant data
+is read. Supabase's `sb_*` keys sign asymmetrically, so verification fetches
+public keys from the project's JWKS endpoint rather than sharing a symmetric
+secret.
 """
 
 from __future__ import annotations
@@ -20,7 +29,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app import db
 from app.models import users as users_model
-from app.schemas.auth import CurrentUser
+from app.schemas.auth import AuthenticatedIdentity, CurrentUser
 from app.utils.config import get_settings
 
 _ALGORITHMS = ["ES256", "RS256"]
@@ -67,11 +76,14 @@ def _decode(token: str) -> dict[str, Any]:
     )
 
 
-async def get_current_user(
-    request: Request,
+async def get_authenticated_identity(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-) -> CurrentUser:
-    """Verify the bearer token and resolve the caller's tenant context."""
+) -> AuthenticatedIdentity:
+    """Verify the bearer token. Says nothing about membership.
+
+    Depend on this only where a caller legitimately has no organization yet --
+    in practice, signup. Everywhere else, use `get_current_user`.
+    """
     if credentials is None or not credentials.credentials:
         raise _unauthorised("Missing bearer token.")
 
@@ -92,7 +104,16 @@ async def get_current_user(
     except ValueError:
         raise _unauthorised("Token subject is not a valid identifier.") from None
 
-    record = await users_model.get_by_auth_id(db.get_pool(), auth_id)
+    email = claims.get("email") or (claims.get("user_metadata") or {}).get("email")
+    return AuthenticatedIdentity(auth_id=auth_id, email=email)
+
+
+async def get_current_user(
+    request: Request,
+    identity: AuthenticatedIdentity = Depends(get_authenticated_identity),
+) -> CurrentUser:
+    """Verify the bearer token and resolve the caller's tenant context."""
+    record = await users_model.get_by_auth_id(db.get_pool(), identity.auth_id)
     if record is None:
         # Authenticated by Supabase, but with no membership in this application.
         raise HTTPException(

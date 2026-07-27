@@ -11,6 +11,7 @@ from app.middleware.errors import register_exception_handlers
 from app.middleware.logging import RequestContextMiddleware
 from app.routes import auth as auth_routes
 from app.routes import health as health_routes
+from app.routes import org as org_routes
 from app.routes import queries as query_routes
 from app.routes import reports as report_routes
 from app.routes import research as research_routes
@@ -56,6 +57,7 @@ register_exception_handlers(app)
 
 app.include_router(health_routes.router)
 app.include_router(auth_routes.router)
+app.include_router(org_routes.router)
 app.include_router(research_routes.router)
 app.include_router(report_routes.router)
 app.include_router(watchlist_routes.router)
