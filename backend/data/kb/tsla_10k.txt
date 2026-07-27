@@ -1,0 +1,37 @@
+ticker: TSLA
+company: Tesla, Inc.
+doc_type: Form 10-K
+period: FY2025
+source_note: ILLUSTRATIVE SAMPLE - not a real SEC filing. Written to exercise the knowledge base.
+---
+## Item 1. Business
+
+The Company designs, manufactures, and sells electric vehicles and energy generation and storage systems. Automotive revenue is derived from vehicle sales, regulatory credit sales, and software features including driver assistance packages sold on a one-time or subscription basis. The Energy segment sells stationary battery storage to utility and commercial customers alongside residential solar products.
+
+The Company operates vehicle manufacturing facilities across several regions and sells predominantly through a direct sales model rather than a franchised dealer network. Management believes vertical integration across battery, powertrain, and software provides cost and iteration advantages relative to competitors dependent on tiered supplier networks.
+
+## Item 1A. Risk Factors
+
+Vehicle demand is sensitive to price, interest rates, and the availability of purchase incentives. The Company has reduced prices materially across its range in recent periods to sustain volume growth. These reductions compressed automotive gross margin, and further reductions may be necessary if competitive pressure or macroeconomic conditions require them.
+
+Competition in electric vehicles has intensified substantially. Established manufacturers have expanded electric ranges, and manufacturers based in China compete aggressively on price in several markets. The Company's share of the global electric vehicle market has declined even as absolute volumes have grown.
+
+A substantial portion of the Company's valuation rests on future products and capabilities that are not yet commercially deployed at scale, including full autonomy, robotaxi services, and humanoid robotics. Timelines previously communicated for these programmes have not been met. Continued delay, or a determination that a capability is not achievable on the announced approach, could have material adverse effect.
+
+Autonomous driving features are subject to regulatory review and to litigation concerning marketing claims and collision investigations. Adverse regulatory findings could require feature restriction or recall.
+
+The Company depends on key personnel and has experienced significant executive turnover. Public statements by senior leadership have at times affected brand perception in particular markets.
+
+## Item 7. Management's Discussion and Analysis
+
+Total revenue for the fiscal year was approximately 98 billion dollars, broadly flat compared with the prior year. Automotive revenue declined modestly on lower average selling prices, offset by growth in the Energy segment, where deployments grew substantially year over year.
+
+Automotive gross margin excluding regulatory credits was approximately 17 percent, compressed from prior years by pricing actions and by under-absorption at facilities operating below capacity. Energy segment gross margin improved and now exceeds automotive gross margin, a reversal of the historical relationship.
+
+Operating expenses increased on continued investment in autonomy and robotics programmes. Free cash flow remained positive but declined year over year.
+
+## Competitive Landscape
+
+In electric vehicles the Company competes with established global manufacturers expanding their electric ranges and with lower-cost manufacturers in Asia that have taken share in price-sensitive markets. The Company's advantages are manufacturing cost per unit, charging infrastructure, and over-the-air software capability.
+
+In energy storage the Company competes with battery system integrators and with utility-scale project developers. The segment has grown faster than automotive and carries higher gross margin, and management has indicated it may become a larger contributor to profitability over time.

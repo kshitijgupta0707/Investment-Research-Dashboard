@@ -1,0 +1,35 @@
+ticker: AMD
+company: Advanced Micro Devices, Inc.
+doc_type: Form 10-K
+period: FY2025
+source_note: ILLUSTRATIVE SAMPLE - not a real SEC filing. Written to exercise the knowledge base.
+---
+## Item 1. Business
+
+The Company designs and sells central processing units, graphics processing units, and adaptive computing products. Reportable segments are Data Center, Client, Gaming, and Embedded. Data Center comprises server processors and accelerated computing products sold to cloud service providers and enterprise customers.
+
+The Company operates a fabless model, relying on third-party foundries for manufacturing while retaining design and architecture in house. Recent product strategy has emphasised chiplet-based designs, which allow individual functional blocks to be manufactured on the most appropriate process node and assembled into a single package, improving yield economics relative to large monolithic designs.
+
+## Item 1A. Risk Factors
+
+The Company competes against a substantially larger competitor in accelerated computing whose software ecosystem is more mature and more widely adopted. Customers face meaningful migration cost when porting workloads to the Company's platform. Failure to close this software gap could limit adoption regardless of hardware price and performance competitiveness.
+
+Manufacturing depends on third-party foundries operating advanced process nodes, with limited alternative sources at the leading edge. Allocation of foundry capacity is competitive, and the Company may be unable to secure sufficient capacity, or may secure it only on unfavourable commercial terms, during periods of industry-wide constraint.
+
+Server processor revenue depends on continued share gains against an incumbent competitor. Those gains have been supported by a sustained process and architecture advantage that may narrow. A recovery in the competitor's execution could slow or reverse share gains and compress pricing.
+
+Client and Gaming segment revenue is exposed to consumer discretionary spending and to the personal computer replacement cycle, both of which have proven volatile and difficult to forecast.
+
+## Item 7. Management's Discussion and Analysis
+
+Total revenue for the fiscal year was approximately 26 billion dollars, an increase of roughly 13 percent over the prior year. Data Center revenue was approximately 12 billion dollars, growing significantly on server processor share gains and initial volume shipments of accelerated computing products. Client revenue grew modestly, while Gaming revenue declined on softer console demand.
+
+Gross margin was approximately 53 percent, improving year over year on a richer mix of Data Center products. Operating margin remains materially below that of the Company's principal competitor in accelerated computing, reflecting both scale differences and continued investment in software.
+
+Research and development expense increased year over year, concentrated in accelerated computing software and in the next generation of server architecture. Management expects this elevated investment to continue.
+
+## Competitive Landscape
+
+In server processors the Company competes primarily with an incumbent whose market share remains larger but has declined over several years. Competition is on core count, performance per watt, and total cost of ownership, where the Company's chiplet approach has provided an advantage.
+
+In accelerated computing the Company competes against a dominant incumbent. The Company's strategy emphasises memory capacity and bandwidth advantages for inference workloads, open software standards as an alternative to a proprietary ecosystem, and aggressive pricing to win initial deployments. Success depends materially on maturing the software stack to a level customers regard as production-ready.

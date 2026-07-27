@@ -1,0 +1,35 @@
+ticker: GS
+company: The Goldman Sachs Group, Inc.
+doc_type: Form 10-K
+period: FY2025
+source_note: ILLUSTRATIVE SAMPLE - not a real SEC filing. Written to exercise the knowledge base.
+---
+## Item 1. Business
+
+The Company is a financial institution operating through three segments: Global Banking and Markets, Asset and Wealth Management, and Platform Solutions. Revenue is weighted toward institutional activity, comprising advisory fees, underwriting, and trading across fixed income, currencies, commodities, and equities.
+
+Relative to universal banks, the Company has a smaller consumer deposit base and derives a greater proportion of revenue from capital markets. Strategy in recent periods has emphasised growing durable management fees in Asset and Wealth Management to reduce dependence on transaction-driven revenue, and reducing exposure to consumer lending initiatives that did not achieve target returns.
+
+## Item 1A. Risk Factors
+
+Revenue concentration in capital markets produces greater earnings volatility than that of more diversified peers. Advisory and underwriting revenue depend on corporate transaction activity, which contracts sharply during periods of market stress or elevated rate volatility, precisely when trading conditions may also deteriorate.
+
+The Company relies more heavily on wholesale funding than institutions with large retail deposit franchises. Wholesale funding is more sensitive to credit spread and market sentiment, and can become expensive or scarce under stress.
+
+Market risk arises from principal positions taken in the ordinary course of market making. Value-at-risk models rely on historical relationships that may not hold during dislocation, and actual losses may exceed modelled expectations.
+
+Historical principal investment and alternative investment holdings introduce earnings variability, as valuation changes flow through results. The Company has been reducing on-balance-sheet principal investments in favour of managing third-party capital.
+
+## Item 7. Balance Sheet and Capital
+
+Total assets were approximately 1.7 trillion dollars at period end. Deposits were approximately 430 billion dollars, a smaller proportion of the funding base than at universal bank peers, with the remainder funded through unsecured long-term debt, collateralised financing, and shareholders' equity.
+
+The Common Equity Tier 1 capital ratio was approximately 15 percent. The liquidity coverage ratio exceeded requirement, with a global core liquid assets pool maintained against stress scenarios. Level 3 assets, whose valuation depends on unobservable inputs, represented a modest share of total assets but a meaningful share of trading assets.
+
+Net revenue for the year was approximately 53 billion dollars, of which Global Banking and Markets contributed the substantial majority. Asset and Wealth Management fee revenue grew year over year. Return on tangible common equity was approximately 13 percent, below that of more diversified peers, reflecting both the business mix and the capital intensity of market making.
+
+## Competitive Landscape
+
+The Company competes with universal banks that can bundle lending with advisory services, and with independent advisory firms that compete on conflict-free positioning in mergers and acquisitions. In asset management the Company competes with large traditional managers and with alternative asset managers on private credit and private equity mandates.
+
+The Company's competitive strength is its institutional client franchise and its position in complex advisory and structured transactions. Its relative weakness is the absence of a large low-cost deposit base to fund lending at competitive spreads.

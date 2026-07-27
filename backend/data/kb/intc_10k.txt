@@ -1,0 +1,37 @@
+ticker: INTC
+company: Intel Corporation
+doc_type: Form 10-K
+period: FY2025
+source_note: ILLUSTRATIVE SAMPLE - not a real SEC filing. Written to exercise the knowledge base.
+---
+## Item 1. Business
+
+The Company designs and manufactures semiconductors, and is distinguished from most competitors by owning and operating its own fabrication facilities. Reportable segments include Client Computing, Data Center and AI, Network and Edge, and Foundry Services, the last of which manufactures silicon for external customers.
+
+The Company is executing a multi-year strategy to regain process technology leadership and to establish a competitive contract manufacturing business. This requires sustained capital expenditure at levels substantially above historical norms, funded from operating cash flow, external partnerships, and government incentive programmes.
+
+## Item 1A. Risk Factors
+
+The Company's capital intensity is materially higher than that of fabless competitors. Owning fabrication capacity produces high fixed costs that must be absorbed regardless of demand. During periods of underutilisation, gross margin deteriorates sharply, and the Company has limited ability to reduce these costs in the short term.
+
+The process technology roadmap carries execution risk. Prior generations experienced multi-year delays that permitted competitors to gain share. Failure to deliver the current roadmap on schedule would further erode competitive position in both client and server markets and would undermine the Foundry Services value proposition.
+
+Server processor market share has declined over several years in the face of a competitor with a sustained architectural advantage. Continued share loss would reduce revenue in the Company's historically most profitable segment.
+
+The Company's position in accelerated computing for artificial intelligence is weak relative to established competitors. The Company has limited presence in training workloads and its software ecosystem for accelerated computing is substantially less mature, restricting participation in the fastest-growing part of the semiconductor market.
+
+Foundry Services requires winning external customers who are, in many cases, direct competitors of the Company's own product divisions. Customers may be reluctant to share designs with a supplier that competes with them.
+
+## Item 7. Management's Discussion and Analysis
+
+Total revenue for the fiscal year was approximately 53 billion dollars, broadly flat to modestly lower than the prior year. Client Computing revenue was approximately 30 billion dollars. Data Center and AI revenue was approximately 13 billion dollars, declining year over year on continued share loss.
+
+Gross margin was approximately 38 percent, materially below historical levels, reflecting factory underutilisation, start-up costs associated with new process nodes, and unfavourable product mix. Operating margin was near break-even after restructuring charges.
+
+Capital expenditure remained elevated in support of the manufacturing roadmap. Free cash flow was negative for the period. Management has announced cost reduction measures including headcount reduction and portfolio rationalisation.
+
+## Competitive Landscape
+
+In client and server processors the Company faces a competitor that has gained share consistently through superior performance per watt. In accelerated computing the Company is a distant participant against entrenched incumbents.
+
+In Foundry Services the Company competes with established contract manufacturers operating at greater scale, with longer customer relationships and a track record of process execution the Company must still establish. Management regards Foundry Services as central to the long-term strategy, though it is not expected to reach operating profitability in the near term.

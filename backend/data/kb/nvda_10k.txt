@@ -1,0 +1,35 @@
+ticker: NVDA
+company: NVIDIA Corporation
+doc_type: Form 10-K
+period: FY2025
+source_note: ILLUSTRATIVE SAMPLE - not a real SEC filing. Written to exercise the knowledge base.
+---
+## Item 1. Business
+
+The Company designs accelerated computing platforms used in artificial intelligence training and inference, professional visualisation, and autonomous systems. Revenue is reported across four segments: Data Center, Gaming, Professional Visualisation, and Automotive. Data Center is the largest and fastest-growing segment, reflecting adoption of accelerated computing by hyperscale cloud providers, enterprises building private AI infrastructure, and sovereign AI initiatives.
+
+The Company's platform strategy couples graphics processing units with a proprietary software stack, including CUDA, cuDNN, and inference-serving frameworks. Management believes this software ecosystem raises switching costs for customers who have invested engineering effort in optimising workloads for the platform, and represents a durable competitive advantage that is difficult for hardware-only competitors to replicate.
+
+## Item 1A. Risk Factors
+
+Customer concentration presents material risk. A limited number of hyperscale cloud providers account for a substantial share of Data Center revenue. The loss of a single large customer, or a decision by such a customer to shift materially toward internally designed silicon, could reduce revenue and operating margin significantly in the affected periods.
+
+Manufacturing is concentrated with third-party foundries, principally in Taiwan, and with a small number of advanced packaging and high-bandwidth memory suppliers. The Company does not own fabrication capacity. Geopolitical disruption, natural disaster, or capacity constraint affecting these suppliers could delay shipments and constrain revenue irrespective of end demand.
+
+Export control regulations restrict the sale of certain advanced computing products to specified regions. Changes to these rules have previously required the Company to develop region-specific product variants and have reduced addressable demand in affected markets. Further tightening could reduce revenue and require additional inventory reserves.
+
+Demand for AI infrastructure may prove cyclical. A portion of current demand reflects capacity build-out by customers whose own revenue from AI services remains early-stage. Should returns on that investment disappoint, customers could reduce or defer orders, producing a sharp correction in a business that has been modelled on continued growth.
+
+## Item 7. Management's Discussion and Analysis
+
+Total revenue for the fiscal year was approximately 130 billion dollars, an increase of roughly 114 percent over the prior year, driven principally by Data Center growth. Data Center revenue was approximately 115 billion dollars. Gaming revenue was approximately 11 billion dollars, broadly flat year over year.
+
+Gross margin was approximately 75 percent, expanding from the prior year on favourable product mix and higher average selling prices in Data Center. Operating expenses grew more slowly than revenue, producing significant operating leverage. Management cautions that gross margin at this level reflects unusually favourable supply and demand conditions and may normalise as competition increases and product mix shifts toward inference workloads.
+
+Inventory and supply commitments increased substantially year over year as the Company secured capacity for future periods. These commitments expose the Company to write-down risk should demand fall short of the levels assumed when the commitments were made.
+
+## Competitive Landscape
+
+The Company competes with other merchant silicon vendors, principally in accelerated computing, and increasingly with custom accelerators designed in-house by large cloud customers. Custom silicon is typically optimised for a narrower set of workloads and may offer favourable cost per inference for those workloads, though it lacks the breadth of the Company's software ecosystem.
+
+Competitive pressure is expected to intensify in inference, where workload requirements are less demanding than training and where price sensitivity is higher. The Company's response is to broaden its software moat and to ship at a faster architectural cadence than competitors can match.

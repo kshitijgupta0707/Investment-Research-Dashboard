@@ -1,0 +1,37 @@
+ticker: JPM
+company: JPMorgan Chase & Co.
+doc_type: Form 10-K
+period: FY2025
+source_note: ILLUSTRATIVE SAMPLE - not a real SEC filing. Written to exercise the knowledge base.
+---
+## Item 1. Business
+
+The Company is a diversified financial services firm operating through four principal segments: Consumer and Community Banking, Corporate and Investment Bank, Commercial Banking, and Asset and Wealth Management. Revenue is generated from net interest income on lending and securities portfolios, and from fee income across investment banking, trading, asset management, and payments.
+
+The breadth of the franchise is central to the Company's strategy. Management believes diversification across consumer and wholesale businesses reduces earnings volatility relative to institutions concentrated in capital markets activity, since fee-driven and spread-driven revenues respond differently to the interest rate cycle.
+
+## Item 1A. Risk Factors
+
+Credit risk is inherent in the lending portfolio. Deterioration in employment or consumer income would increase charge-offs in card and consumer lending, where loss rates are structurally higher than in secured lending. The Company maintains an allowance for credit losses based on forecast economic conditions; actual losses may exceed the amounts provided.
+
+Net interest income is sensitive to the level and shape of the yield curve. A rapid decline in policy rates would compress deposit spreads, while sustained higher rates increase funding cost as deposits reprice and migrate toward higher-yielding alternatives.
+
+Commercial real estate exposure, particularly to office properties, carries elevated risk given structurally lower occupancy. The Company has increased reserves against this portfolio.
+
+The Company is subject to extensive capital, liquidity, and resolution requirements. Changes to capital rules could require the Company to hold additional capital against the same assets, reducing return on equity and constraining capital returned to shareholders.
+
+Operational and technology risk, including cyber intrusion and third-party service failure, could interrupt service and result in loss and regulatory sanction.
+
+## Item 7. Balance Sheet and Capital
+
+Total assets were approximately 4.2 trillion dollars at period end. Total deposits were approximately 2.4 trillion dollars. The loan portfolio was approximately 1.3 trillion dollars, diversified across consumer, card, commercial, and real estate lending.
+
+The Common Equity Tier 1 capital ratio was approximately 15 percent, above the regulatory minimum including applicable buffers. The supplementary leverage ratio remained above requirement. The liquidity coverage ratio exceeded 100 percent, with high-quality liquid assets held principally in cash at central banks and government securities.
+
+Net interest income for the year was approximately 92 billion dollars. Non-interest revenue was approximately 60 billion dollars. The allowance for credit losses represented approximately 1.8 percent of retained loans. Return on tangible common equity was approximately 20 percent.
+
+## Competitive Landscape
+
+The Company competes with other large diversified banks across consumer and wholesale banking, with independent investment banks in advisory and capital markets, and increasingly with non-bank lenders and payments providers that operate outside the bank regulatory perimeter and therefore without equivalent capital requirements.
+
+Scale is a central competitive factor. Technology investment, regulatory compliance, and balance sheet capacity all favour the largest institutions, and the Company's technology spend exceeds the total revenue of many smaller competitors.

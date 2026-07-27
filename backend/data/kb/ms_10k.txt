@@ -1,0 +1,37 @@
+ticker: MS
+company: Morgan Stanley
+doc_type: Form 10-K
+period: FY2025
+source_note: ILLUSTRATIVE SAMPLE - not a real SEC filing. Written to exercise the knowledge base.
+---
+## Item 1. Business
+
+The Company operates through three segments: Institutional Securities, Wealth Management, and Investment Management. Institutional Securities comprises advisory, underwriting, and sales and trading. Wealth Management provides brokerage, advisory, and lending services to individual clients and has grown substantially through acquisition.
+
+Strategy has centred on shifting the revenue mix toward Wealth and Investment Management, where fee income tied to client assets is more durable across market cycles than transaction-driven institutional revenue. Wealth Management now contributes approximately half of firm revenue, a materially different profile from that of a decade ago.
+
+## Item 1A. Risk Factors
+
+Wealth Management revenue is linked to the level of client assets, which fall with equity and fixed income markets. A sustained market decline would reduce fee revenue even where client relationships are retained, and net new asset growth may not offset market depreciation.
+
+Institutional Securities revenue is exposed to the same cyclicality affecting peers concentrated in capital markets, including dependence on corporate transaction volumes and on trading conditions that deteriorate under stress.
+
+Integration and retention risk arises from acquisitions in wealth and workplace channels. Realising the anticipated benefits depends on retaining advisers and client relationships, and on consolidating technology platforms that were not designed to interoperate.
+
+Client cash held in sweep deposit programmes may migrate toward higher-yielding alternatives as rates change, reducing net interest income within Wealth Management. This behaviour has proven difficult to forecast.
+
+The Company is subject to capital, liquidity, and resolution requirements comparable to peers, and to periodic supervisory stress testing that constrains capital distribution.
+
+## Item 7. Balance Sheet and Capital
+
+Total assets were approximately 1.2 trillion dollars at period end. Deposits were approximately 350 billion dollars, sourced substantially from Wealth Management client sweep balances, which management regards as a comparatively stable and low-cost funding source relative to wholesale alternatives.
+
+The Common Equity Tier 1 capital ratio was approximately 15 percent, above requirement. The liquidity coverage ratio exceeded requirement.
+
+Net revenue for the year was approximately 62 billion dollars. Wealth Management contributed approximately 28 billion dollars, Institutional Securities approximately 28 billion dollars, and Investment Management the balance. Client assets across Wealth and Investment Management exceeded 7 trillion dollars. Return on tangible common equity was approximately 18 percent, above that of institutions more concentrated in capital markets, reflecting the higher proportion of fee-based revenue.
+
+## Competitive Landscape
+
+In wealth management the Company competes with full-service brokerage firms, registered investment adviser networks, and low-cost digital platforms that compete aggressively on price. In institutional securities it competes with universal banks and independent advisory firms.
+
+Management regards the combination of a large institutional franchise with a scaled wealth business as the principal differentiator, providing both capital markets capability and a recurring fee stream that reduces overall earnings volatility relative to institutions weighted more heavily toward trading.
