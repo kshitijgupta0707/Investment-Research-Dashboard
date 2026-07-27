@@ -1,14 +1,18 @@
 """News articles.
 
-Sentiment is deliberately absent here: NewsAPI does not provide it, and it is
-classified by Claude from the title and description in a later step.
+NewsAPI does not supply sentiment. Claude classifies it from the title and
+description in a separate step, so `sentiment` is None until that runs -- and
+stays None if it fails, since losing the label must not lose the article.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
+
+Sentiment = Literal["positive", "negative", "neutral"]
 
 
 class Article(BaseModel):
@@ -17,6 +21,7 @@ class Article(BaseModel):
     url: str
     source: str
     published_at: datetime
+    sentiment: Sentiment | None = None
 
 
 class NewsResult(BaseModel):

@@ -80,9 +80,15 @@ class StubNews:
         return news(ticker)
 
 
+async def passthrough(articles: list[Article], ticker: str) -> list[Article]:
+    """Sentiment is exercised in test_sentiment.py; here it must not call out."""
+    return articles
+
+
 def context(**kwargs: Any) -> ToolContext:
     kwargs.setdefault("market", StubMarket())
     kwargs.setdefault("news", StubNews())
+    kwargs.setdefault("classifier", passthrough)
     return ToolContext(**kwargs)
 
 
@@ -137,7 +143,7 @@ async def test_historical_data_is_fetched_only_when_asked() -> None:
 
 async def test_tools_run_in_parallel_not_in_series() -> None:
     """Three slow tools should cost one tool's latency, not three."""
-    ctx = ToolContext(market=StubMarket(delay=0.3), news=StubNews(delay=0.3))
+    ctx = context(market=StubMarket(delay=0.3), news=StubNews(delay=0.3))
     started = asyncio.get_event_loop().time()
 
     await execute_plan(
@@ -153,7 +159,7 @@ async def test_tools_run_in_parallel_not_in_series() -> None:
 
 
 async def test_tickers_within_a_tool_run_in_parallel() -> None:
-    ctx = ToolContext(market=StubMarket(delay=0.3), news=StubNews())
+    ctx = context(market=StubMarket(delay=0.3), news=StubNews())
     started = asyncio.get_event_loop().time()
 
     await execute_plan(plan((MARKET_DATA, {"tickers": ["JPM", "GS", "MS"]})), ctx)
@@ -167,7 +173,7 @@ async def test_tickers_within_a_tool_run_in_parallel() -> None:
 
 async def test_one_failing_tool_does_not_lose_the_others() -> None:
     """The core requirement: partial results beat no results."""
-    ctx = ToolContext(market=StubMarket(fail={"NVDA"}), news=StubNews())
+    ctx = context(market=StubMarket(fail={"NVDA"}), news=StubNews())
 
     result = await execute_plan(
         plan(
@@ -183,7 +189,7 @@ async def test_one_failing_tool_does_not_lose_the_others() -> None:
 
 
 async def test_failure_reason_is_captured() -> None:
-    ctx = ToolContext(market=StubMarket(fail={"NVDA"}), news=StubNews())
+    ctx = context(market=StubMarket(fail={"NVDA"}), news=StubNews())
     result = await execute_plan(plan((MARKET_DATA, {"tickers": ["NVDA"]})), ctx)
 
     assert result.results[0].failed
@@ -192,7 +198,7 @@ async def test_failure_reason_is_captured() -> None:
 
 async def test_one_bad_ticker_keeps_the_others() -> None:
     """A three-way comparison should survive one unknown symbol."""
-    ctx = ToolContext(market=StubMarket(fail={"GS"}), news=StubNews())
+    ctx = context(market=StubMarket(fail={"GS"}), news=StubNews())
 
     result = await execute_plan(plan((MARKET_DATA, {"tickers": ["JPM", "GS", "MS"]})), ctx)
 
@@ -202,7 +208,7 @@ async def test_one_bad_ticker_keeps_the_others() -> None:
 
 
 async def test_tool_fails_only_when_every_ticker_fails() -> None:
-    ctx = ToolContext(market=StubMarket(fail={"JPM", "GS"}), news=StubNews())
+    ctx = context(market=StubMarket(fail={"JPM", "GS"}), news=StubNews())
     result = await execute_plan(plan((MARKET_DATA, {"tickers": ["JPM", "GS"]})), ctx)
 
     assert result.results[0].failed
@@ -214,7 +220,7 @@ async def test_timeout_is_reported_as_a_failure(monkeypatch: pytest.MonkeyPatch)
 
     settings = executor.get_settings()
     monkeypatch.setattr(settings, "tool_timeout_seconds", 0.05)
-    ctx = ToolContext(market=StubMarket(delay=1.0), news=StubNews())
+    ctx = context(market=StubMarket(delay=1.0), news=StubNews())
 
     result = await execute_plan(plan((MARKET_DATA, {"tickers": ["NVDA"]})), ctx)
 
@@ -227,7 +233,7 @@ async def test_a_slow_tool_does_not_delay_a_fast_one(monkeypatch: pytest.MonkeyP
     from app.agent import executor
 
     monkeypatch.setattr(executor.get_settings(), "tool_timeout_seconds", 0.2)
-    ctx = ToolContext(market=StubMarket(delay=5.0), news=StubNews())
+    ctx = context(market=StubMarket(delay=5.0), news=StubNews())
 
     result = await execute_plan(
         plan(
@@ -253,14 +259,14 @@ async def test_unexpected_exception_is_contained() -> None:
         async def get_history(self, ticker: str, period: str = "3mo"):
             raise ZeroDivisionError("something absurd")
 
-    ctx = ToolContext(market=Exploding(), news=StubNews())
+    ctx = context(market=Exploding(), news=StubNews())
     result = await execute_plan(plan((MARKET_DATA, {"tickers": ["NVDA"]})), ctx)
 
     assert result.results[0].failed
 
 
 async def test_knowledge_base_without_a_database_degrades() -> None:
-    ctx = ToolContext(pool=None, market=StubMarket(), news=StubNews())
+    ctx = context(pool=None, market=StubMarket(), news=StubNews())
     result = await execute_plan(plan((KNOWLEDGE_BASE, {"query": "risks"})), ctx)
 
     assert result.results[0].failed
@@ -296,7 +302,7 @@ async def test_partial_is_false_when_everything_works() -> None:
 
 async def test_partial_is_false_when_everything_fails() -> None:
     """Total failure is a different state from partial, and the UI shows it differently."""
-    ctx = ToolContext(market=StubMarket(fail={"NVDA"}), news=StubNews(fail={"NVDA"}))
+    ctx = context(market=StubMarket(fail={"NVDA"}), news=StubNews(fail={"NVDA"}))
 
     result = await execute_plan(
         plan(
@@ -309,3 +315,34 @@ async def test_partial_is_false_when_everything_fails() -> None:
     assert result.all_failed
     assert not result.partial
     assert set(result.failed_tools) == {MARKET_DATA, NEWS_SENTIMENT}
+
+
+# --- sentiment is an enrichment, not a dependency ---------------------------
+
+
+async def test_sentiment_labels_reach_the_news_result() -> None:
+    async def label_positive(articles: list[Article], ticker: str) -> list[Article]:
+        return [a.model_copy(update={"sentiment": "positive"}) for a in articles]
+
+    result = await execute_plan(
+        plan((NEWS_SENTIMENT, {"tickers": ["NVDA"]})), context(classifier=label_positive)
+    )
+
+    articles = result.results[0].data["by_ticker"]["NVDA"]["articles"]
+    assert articles[0]["sentiment"] == "positive"
+
+
+async def test_failed_classification_still_returns_the_articles() -> None:
+    """Losing the badge must not lose the news."""
+
+    async def explode(articles: list[Article], ticker: str) -> list[Article]:
+        raise RuntimeError("classifier down")
+
+    result = await execute_plan(
+        plan((NEWS_SENTIMENT, {"tickers": ["NVDA"]})), context(classifier=explode)
+    )
+
+    assert result.results[0].ok, "news must survive a sentiment failure"
+    articles = result.results[0].data["by_ticker"]["NVDA"]["articles"]
+    assert len(articles) == 1
+    assert articles[0]["sentiment"] is None

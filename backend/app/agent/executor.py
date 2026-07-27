@@ -14,10 +14,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import asyncpg
 
+from app.agent.sentiment import classify_articles
 from app.agent.tools import (
     KNOWLEDGE_BASE,
     MARKET_DATA,
@@ -32,6 +34,7 @@ from app.integrations.market_data import MarketDataClient, build_market_data_cli
 from app.integrations.newsapi import NewsAPIClient
 from app.schemas.agent import PlannedToolCall, QueryPlan
 from app.schemas.execution import ExecutionResult, ToolResult
+from app.schemas.news import Article
 from app.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -45,10 +48,12 @@ class ToolContext:
         pool: asyncpg.Pool | None = None,
         market: MarketDataClient | None = None,
         news: NewsAPIClient | None = None,
+        classifier: Callable[[list[Article], str], Awaitable[list[Article]]] | None = None,
     ) -> None:
         self.pool = pool
         self.market = market or build_market_data_client()
         self.news = news or NewsAPIClient()
+        self.classify = classifier or classify_articles
 
 
 async def _gather_per_ticker(coros: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
@@ -101,6 +106,21 @@ async def _run_news(args: NewsSentimentInput, ctx: ToolContext) -> dict[str, Any
 
     if not results:
         raise RuntimeError(f"no news for any of {', '.join(args.tickers)}")
+
+    # Classify each ticker's articles in parallel. Sentiment is an enrichment:
+    # if it fails, the articles are still returned, just unlabelled.
+    classified = await asyncio.gather(
+        *(ctx.classify(result.articles, ticker) for ticker, result in results.items()),
+        return_exceptions=True,
+    )
+    for (ticker, result), outcome in zip(list(results.items()), classified, strict=True):
+        if isinstance(outcome, BaseException):
+            logger.warning(
+                "sentiment unavailable for ticker",
+                extra={"context": {"ticker": ticker, "error": str(outcome)}},
+            )
+        else:
+            results[ticker] = result.model_copy(update={"articles": outcome})
 
     return {
         "by_ticker": {t: r.model_dump(mode="json") for t, r in results.items()},
