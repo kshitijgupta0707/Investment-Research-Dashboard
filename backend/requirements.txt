@@ -12,6 +12,7 @@ rank-bm25==0.2.2
 asyncpg==0.31.0
 psycopg2-binary==2.9.12
 
+anthropic==0.120.0
 PyJWT[crypto]==2.13.0
 
 pytest==9.1.1
