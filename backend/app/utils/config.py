@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # LLM calls run far longer than a quote lookup, especially with thinking.
     llm_timeout_seconds: float = 60.0
 
+    # Ceiling for one whole tool, including its per-ticker fan-out and retries.
+    tool_timeout_seconds: float = 25.0
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
