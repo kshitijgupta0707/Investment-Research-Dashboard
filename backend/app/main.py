@@ -11,6 +11,7 @@ from app.middleware.errors import register_exception_handlers
 from app.middleware.logging import RequestContextMiddleware
 from app.routes import auth as auth_routes
 from app.routes import health as health_routes
+from app.routes import research as research_routes
 from app.schemas.envelope import Envelope, ok
 from app.utils.config import get_settings
 from app.utils.logging import configure_logging
@@ -52,6 +53,7 @@ register_exception_handlers(app)
 
 app.include_router(health_routes.router)
 app.include_router(auth_routes.router)
+app.include_router(research_routes.router)
 
 
 @app.get("/", response_model=Envelope[dict[str, str]])
