@@ -8,12 +8,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
 from app.middleware.errors import register_exception_handlers
+from app.middleware.logging import RequestContextMiddleware
 from app.routes import auth as auth_routes
 from app.routes import health as health_routes
 from app.schemas.envelope import Envelope, ok
 from app.utils.config import get_settings
+from app.utils.logging import configure_logging
 
 settings = get_settings()
+configure_logging(settings.log_level)
 
 
 @asynccontextmanager
@@ -38,7 +41,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
+
+# Registered last, so it is the outermost layer: the request id exists before
+# anything else runs, and every response leaves with the header attached.
+app.add_middleware(RequestContextMiddleware)
 
 register_exception_handlers(app)
 

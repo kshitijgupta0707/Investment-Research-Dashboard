@@ -15,7 +15,7 @@ from typing import Any
 from uuid import UUID
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app import db
@@ -68,6 +68,7 @@ def _decode(token: str) -> dict[str, Any]:
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> CurrentUser:
     """Verify the bearer token and resolve the caller's tenant context."""
@@ -99,10 +100,15 @@ async def get_current_user(
             detail="User is not a member of any organization.",
         )
 
-    return CurrentUser(
+    user = CurrentUser(
         id=record["id"],
         auth_id=record["supabase_auth_id"],
         email=record["email"],
         org_id=record["org_id"],
         role=record["role"],
     )
+
+    # Shared via the request scope so the access log can report who called.
+    request.state.user_id = str(user.id)
+    request.state.org_id = str(user.org_id)
+    return user
