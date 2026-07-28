@@ -91,6 +91,34 @@ export interface ReportSummary {
   updated_at: string;
 }
 
+/** A member of the organization. Admin-only read. */
+export interface Member {
+  id: string;
+  email: string;
+  name: string | null;
+  role: Role;
+  created_at: string;
+}
+
+export type InviteStatus = "active" | "revoked" | "expired";
+
+/**
+ * An invite code.
+ *
+ * `status` is stored; `expired` is derived by the backend from `expires_at`,
+ * because nothing sweeps the table -- a lapsed invite is still stored
+ * "active". Read `expired`, not `status`, to decide whether a code still works.
+ */
+export interface Invite {
+  id: string;
+  code: string;
+  status: InviteStatus;
+  expires_at: string | null;
+  created_at: string;
+  created_by_email: string;
+  expired: boolean;
+}
+
 export interface WatchlistEntry {
   id: string;
   ticker: string;

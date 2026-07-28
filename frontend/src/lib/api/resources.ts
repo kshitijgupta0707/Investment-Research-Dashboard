@@ -2,6 +2,8 @@ import "server-only";
 
 import { apiFetch } from "@/lib/api/client";
 import type {
+  Invite,
+  Member,
   Organization,
   Page,
   QueryHistoryEntry,
@@ -67,4 +69,14 @@ export function getWatchlist(): Promise<WatchlistEntry[]> {
 
 export function getOrganization(): Promise<Organization> {
   return authorized<Organization>("/api/org");
+}
+
+/** Admin-only. The API answers 403 for anyone else. */
+export function getMembers(): Promise<Member[]> {
+  return authorized<Member[]>("/api/org/members");
+}
+
+/** Admin-only. */
+export function getInvites(): Promise<Invite[]> {
+  return authorized<Invite[]>("/api/org/invites");
 }
