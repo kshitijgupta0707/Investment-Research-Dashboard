@@ -9,6 +9,16 @@ const nextConfig = {
    *   NEXT_DIST_DIR=.next-build npm run build
    */
   distDir: process.env.NEXT_DIST_DIR || ".next",
+
+  /*
+   * Emit a self-contained server bundle at `${distDir}/standalone`, carrying
+   * only the dependencies actually reached at runtime. The Docker image copies
+   * that instead of the whole `node_modules`, which is the difference between
+   * an image around 200 MB and one well over a gigabyte.
+   *
+   * No effect on `next dev` or on a Vercel deployment -- both ignore it.
+   */
+  output: "standalone",
 };
 
 export default nextConfig;

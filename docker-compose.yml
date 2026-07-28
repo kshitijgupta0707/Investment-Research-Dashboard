@@ -1,0 +1,52 @@
+# One-command local run of the whole application.
+#
+#   docker compose up --build
+#
+# There is no database service here: Postgres and Auth are hosted by Supabase,
+# so both containers reach the same project a local `uvicorn` would. Fill in
+# `.env` at the repo root first -- Compose reads it for the substitutions below
+# and passes it wholesale to the backend.
+
+services:
+  backend:
+    build: ./backend
+    # The backend reads every setting from the environment; pydantic-settings
+    # falls through to real env vars when no .env file is present in the image.
+    env_file: .env
+    ports:
+      - "8000:8000"
+    healthcheck:
+      # curl is not in the slim image, but python is.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Inside the Compose network the Next.js *server* reaches the API by
+        # service name. Every backend call in this app is server-side -- no
+        # client component imports apiFetch -- so the browser never resolves
+        # this host, and `backend` is correct here where `localhost` would be
+        # wrong.
+        NEXT_PUBLIC_API_BASE_URL: http://backend:8000
+        # Reused from the backend's own Supabase settings rather than declared
+        # twice; both values are browser-safe by design.
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        # Waits for /health to answer, not merely for the container to exist,
+        # so the first page load cannot race the API's startup.
+        condition: service_healthy

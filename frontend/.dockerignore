@@ -1,0 +1,21 @@
+# Docker reads this from the context root, which is `frontend/`.
+
+# Reinstalled inside the image by `npm ci`. Copying the host's node_modules in
+# would also carry its platform-specific binaries, which is precisely the
+# problem the container exists to avoid.
+node_modules/
+
+.next/
+.next-build/
+out/
+build/
+
+.env*.local
+.vercel/
+
+*.tsbuildinfo
+next-env.d.ts
+.eslintcache
+
+npm-debug.log*
+yarn-error.log*

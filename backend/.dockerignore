@@ -1,0 +1,18 @@
+# Keeps the build context small. Docker reads this from the context root, which
+# is `backend/` -- a .dockerignore at the repo root would not apply to this build.
+
+__pycache__/
+*.py[cod]
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# The image runs the service; tests need a live database and Supabase project,
+# so they are run against the repo rather than inside the container.
+tests/
+pytest.ini
+
+*.log
