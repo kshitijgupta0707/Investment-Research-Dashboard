@@ -5,6 +5,7 @@ import type {
   Organization,
   Page,
   QueryHistoryEntry,
+  ReportDetail,
   ReportSummary,
   WatchlistEntry,
 } from "@/lib/api/types";
@@ -34,6 +35,31 @@ export function getRecentQueries(limit = 5): Promise<Page<QueryHistoryEntry>> {
 export function getRecentReports(limit = 5): Promise<Page<ReportSummary>> {
   return authorized<Page<ReportSummary>>(`/api/reports?limit=${limit}`);
 }
+
+export interface ReportQuery {
+  /** Full-text search over the query text. */
+  q?: string;
+  /** Exact tag match, case-insensitive. */
+  tag?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export function listReports(params: ReportQuery = {}): Promise<Page<ReportSummary>> {
+  const search = new URLSearchParams();
+  if (params.q) search.set("q", params.q);
+  if (params.tag) search.set("tag", params.tag);
+  search.set("limit", String(params.limit ?? REPORTS_PER_PAGE));
+  search.set("offset", String(params.offset ?? 0));
+
+  return authorized<Page<ReportSummary>>(`/api/reports?${search}`);
+}
+
+export function getReport(id: string): Promise<ReportDetail> {
+  return authorized<ReportDetail>(`/api/reports/${id}`);
+}
+
+export const REPORTS_PER_PAGE = 20;
 
 export function getWatchlist(): Promise<WatchlistEntry[]> {
   return authorized<WatchlistEntry[]>("/api/watchlist");

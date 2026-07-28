@@ -179,6 +179,11 @@ export interface ResearchReport {
   generated_at: string;
 }
 
+/** A saved report with its full structured result. */
+export interface ReportDetail extends ReportSummary {
+  structured_result: ResearchReport;
+}
+
 /** What `POST /api/research/query` returns: the report plus its provenance. */
 export interface ResearchQueryResponse {
   query_id: string;
