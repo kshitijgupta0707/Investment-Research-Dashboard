@@ -11,9 +11,9 @@ report rendered as real UI components.
 | Frontend | Next.js 14 (App Router), TypeScript, Tailwind, shadcn/ui |
 | Backend | FastAPI (Python 3.13), async |
 | Database + Auth | Supabase (Postgres, JWT, Row-Level Security) |
-| LLM | Claude (`claude-sonnet-5`) via the Anthropic API |
+| LLM | Gemini (`gemini-3.6-flash`) via the Google Gen AI API |
 | Market data | yfinance (primary), Alpha Vantage (fallback) |
-| News | NewsAPI, with sentiment classified by Claude |
+| News | NewsAPI, with sentiment classified by Gemini |
 | Knowledge base | BM25 keyword index over seeded filing excerpts |
 
 ## Layout
@@ -47,7 +47,7 @@ cp frontend/.env.local.example frontend/.env.local  # frontend config
 ```
 
 Fill both in. `.env` files are gitignored, and no secret is exposed to the browser —
-all Claude calls go through the backend.
+all model calls go through the backend.
 
 **2. Backend**
 
