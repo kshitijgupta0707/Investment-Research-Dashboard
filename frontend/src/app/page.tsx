@@ -1,10 +1,13 @@
-export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-3 p-8">
-      <h1 className="text-2xl font-semibold">Investment Research Dashboard</h1>
-      <p className="text-sm text-gray-500">
-        AI-assisted, source-attributed equity research for analyst teams.
-      </p>
-    </main>
-  );
+import { redirect } from "next/navigation";
+
+import { routes } from "@/lib/routes";
+
+/**
+ * The root has no content of its own.
+ *
+ * Middleware has already decided whether this request has a session, so it will
+ * have been rewritten to login before reaching here if not.
+ */
+export default function RootPage() {
+  redirect(routes.dashboard);
 }

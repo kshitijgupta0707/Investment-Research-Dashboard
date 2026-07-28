@@ -2,26 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * One dark terminal theme, defined once here as HSL channel triplets so every
+ * Tailwind utility and every shadcn primitive reads from the same source.
+ * Change a value here and the whole product follows.
+ *
+ * `--primary` is the single accent: interactive affordances and nothing else.
+ * `--up` / `--down` are reserved for market direction, so green in this UI
+ * always means "the number rose" and never "this succeeded".
+ */
 
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: 213 40% 7%;
+    --foreground: 210 35% 93%;
+
+    --surface: 214 31% 12%;
+    --surface-raised: 213 31% 15%;
+
+    --card: 214 31% 12%;
+    --card-foreground: 210 35% 93%;
+    --popover: 213 31% 15%;
+    --popover-foreground: 210 35% 93%;
+
+    --muted: 214 31% 12%;
+    --muted-foreground: 211 15% 56%;
+    --faint: 211 18% 36%;
+
+    --primary: 188 49% 53%;
+    --primary-foreground: 191 71% 9%;
+    --primary-dim: 190 53% 36%;
+
+    --secondary: 213 31% 15%;
+    --secondary-foreground: 210 35% 93%;
+    --accent: 213 31% 15%;
+    --accent-foreground: 210 35% 93%;
+
+    --destructive: 5 70% 66%;
+    --destructive-foreground: 210 35% 93%;
+
+    --up: 158 57% 56%;
+    --down: 5 70% 66%;
+
+    --border: 213 28% 19%;
+    --input: 213 28% 19%;
+    --hairline: 213 30% 14%;
+    --ring: 188 49% 53%;
+
+    --radius: 0.375rem;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Every figure here is scanned down a column -- prices, deltas, tickers.
+     Tabular numerals stop them jittering as digits change. */
+  .numeric {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  /* Faint graph-paper wash behind the marketing panel, masked to a soft
+     ellipse so it fades out instead of ending on a hard edge. */
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--hairline)) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--hairline)) 1px, transparent 1px);
+    background-size: 52px 52px;
+  }
+
+  .mask-radial {
+    -webkit-mask-image: radial-gradient(ellipse 85% 65% at 28% 22%, #000 20%, transparent 78%);
+    mask-image: radial-gradient(ellipse 85% 65% at 28% 22%, #000 20%, transparent 78%);
   }
 }
