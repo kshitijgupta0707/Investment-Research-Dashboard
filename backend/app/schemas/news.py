@@ -1,6 +1,6 @@
 """News articles.
 
-NewsAPI does not supply sentiment. Claude classifies it from the title and
+NewsAPI does not supply sentiment. The LLM classifies it from the title and
 description in a separate step, so `sentiment` is None until that runs -- and
 stays None if it fails, since losing the label must not lose the article.
 """

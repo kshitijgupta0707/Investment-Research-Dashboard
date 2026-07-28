@@ -83,7 +83,7 @@ async def handle_upstream_error(_: Request, exc: Exception) -> JSONResponse:
     """A external provider failed in a way the request could not absorb.
 
     Individual tool failures never reach here -- the executor turns those into
-    partial results. This is the whole-request case: Claude itself being down,
+    partial results. This is the whole-request case: the LLM itself being down,
     rate limited, or timing out, with no report to return.
     """
     assert isinstance(exc, UpstreamError)

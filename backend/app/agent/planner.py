@@ -1,8 +1,8 @@
 """Turn 1 -- deciding which data sources a question needs.
 
-Claude reads the question and the three tool schemas and chooses. There is no
-keyword routing anywhere in this file or any other: "what's the latest news on
-Tesla?" must reach the news tool and *not* the market data tool because the
+The model reads the question and the three tool schemas and chooses. There is
+no keyword routing anywhere in this file or any other: "what's the latest news
+on Tesla?" must reach the news tool and *not* the market data tool because the
 model decided so, not because the code matched a string.
 
 The model may also choose nothing. A question like "what is a P/E ratio?" needs
@@ -15,11 +15,14 @@ from __future__ import annotations
 import logging
 import time
 
-import anthropic
+from google.genai import types
 from pydantic import ValidationError
 
-from app.agent.client import get_client, translate_error
-from app.agent.tools import TOOL_NAMES, TOOL_SCHEMAS, parse_tool_input
+from app.agent.client import finish_reason as _finish_reason
+from app.agent.client import get_client
+from app.agent.client import response_parts as _parts
+from app.agent.client import translate_error
+from app.agent.tools import TOOL_NAMES, TOOL_SCHEMAS, as_tool, parse_tool_input
 from app.schemas.agent import PlannedToolCall, QueryPlan
 from app.utils.config import get_settings
 
@@ -48,42 +51,55 @@ TSLA, JPMorgan is JPM.
 """
 
 
-def _to_planned_call(block: anthropic.types.ToolUseBlock) -> PlannedToolCall | None:
-    """Validate one tool_use block, or drop it.
+def _to_planned_call(call: types.FunctionCall, index: int) -> PlannedToolCall | None:
+    """Validate one function call, or drop it.
 
     The model is prompted to follow the schemas but is not bound by them, so a
     malformed call is possible. Dropping one is better than failing the whole
     query: the remaining tools still produce a partial report.
+
+    Gemini does not assign ids to function calls, so one is minted here from the
+    call's position. Everything downstream -- the executor, and the synthesis
+    turn that pairs each result back to its request -- keys off this id, so it
+    only has to be unique within a plan and stable for the life of it.
     """
-    if block.name not in TOOL_NAMES:
-        logger.warning("planner requested unknown tool", extra={"context": {"tool": block.name}})
+    name = call.name or ""
+    if name not in TOOL_NAMES:
+        logger.warning("planner requested unknown tool", extra={"context": {"tool": name}})
         return None
 
-    arguments = dict(block.input) if isinstance(block.input, dict) else {}
+    arguments = dict(call.args) if isinstance(call.args, dict) else {}
     try:
-        parse_tool_input(block.name, arguments)
+        parse_tool_input(name, arguments)
     except (ValidationError, ValueError) as exc:
         logger.warning(
             "planner produced invalid tool arguments",
-            extra={"context": {"tool": block.name, "error": str(exc)}},
+            extra={"context": {"tool": name, "error": str(exc)}},
         )
         return None
 
-    return PlannedToolCall(id=block.id, name=block.name, arguments=arguments)
+    return PlannedToolCall(id=f"call_{index}_{name}", name=name, arguments=arguments)
 
 
 async def plan_query(query: str) -> QueryPlan:
-    """Ask Claude which tools this question needs."""
+    """Ask the model which tools this question needs."""
     settings = get_settings()
     started = time.perf_counter()
 
     try:
-        response = await get_client().messages.create(
-            model=settings.anthropic_model,
-            max_tokens=MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            tools=TOOL_SCHEMAS,
-            messages=[{"role": "user", "content": query}],
+        response = await get_client().aio.models.generate_content(
+            model=settings.gemini_model,
+            contents=query,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                max_output_tokens=MAX_TOKENS,
+                tools=[as_tool(TOOL_SCHEMAS)],
+                # We run the tools ourselves, concurrently, with our own
+                # timeouts and degradation. Left on, the SDK would try to
+                # invoke them itself and fail -- these are schemas, not
+                # callables.
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            ),
         )
     except Exception as exc:
         raise translate_error(exc) from exc
@@ -91,13 +107,14 @@ async def plan_query(query: str) -> QueryPlan:
     tool_calls: list[PlannedToolCall] = []
     text_parts: list[str] = []
 
-    for block in response.content:
-        if block.type == "tool_use":
-            planned = _to_planned_call(block)
-            if planned is not None:
-                tool_calls.append(planned)
-        elif block.type == "text" and block.text.strip():
-            text_parts.append(block.text.strip())
+    for index, call in enumerate(response.function_calls or []):
+        planned = _to_planned_call(call, index)
+        if planned is not None:
+            tool_calls.append(planned)
+
+    for part in _parts(response):
+        if part.text and part.text.strip():
+            text_parts.append(part.text.strip())
 
     # Commentary alongside tool calls belongs to the planner, not the user; the
     # direct answer only matters when nothing was called.
@@ -107,11 +124,12 @@ async def plan_query(query: str) -> QueryPlan:
         query=query,
         tool_calls=tool_calls,
         direct_answer=direct_answer,
-        model=response.model,
-        stop_reason=response.stop_reason,
+        model=response.model_version or settings.gemini_model,
+        stop_reason=_finish_reason(response),
         latency_ms=round((time.perf_counter() - started) * 1000, 2),
     )
 
+    usage = response.usage_metadata
     logger.info(
         "planned query",
         extra={
@@ -119,8 +137,8 @@ async def plan_query(query: str) -> QueryPlan:
                 "tools_selected": plan.tool_names,
                 "answered_directly": not plan.used_tools,
                 "planner_latency_ms": plan.latency_ms,
-                "input_tokens": response.usage.input_tokens,
-                "output_tokens": response.usage.output_tokens,
+                "input_tokens": getattr(usage, "prompt_token_count", None),
+                "output_tokens": getattr(usage, "candidates_token_count", None),
             }
         },
     )

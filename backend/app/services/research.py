@@ -7,7 +7,7 @@ model in Turn 1; this module's job is to sequence the three steps, record what
 happened, and let provider failures surface with their own status code.
 
 History is written on **every** path, including failures. A query that died
-because Claude was rate limited is exactly the kind a user wants to see in their
+because the model was rate limited is exactly the kind a user wants to see in their
 history, and `tools_selected` is the evidence that tool choice varies per query.
 """
 
@@ -72,7 +72,7 @@ async def run_research_query(
     query_text: str,
     ctx: ToolContext | None = None,
 ) -> ResearchQueryResponse:
-    """Plan, execute and synthesize. Raises `UpstreamError` if Claude is down."""
+    """Plan, execute and synthesize. Raises `UpstreamError` if the LLM is down."""
     started = time.perf_counter()
     tools_selected: list[str] = []
 

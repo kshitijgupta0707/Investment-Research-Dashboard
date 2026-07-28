@@ -1,6 +1,6 @@
 """Turn 2 -- turning tool output into the structured report.
 
-The conversation is replayed to Claude the way it actually happened: the
+The conversation is replayed to the model the way it actually happened: the
 analyst's question, the tool calls the planner chose, and the results those
 calls produced. The model then answers by calling one final tool, `emit_report`,
 whose arguments *are* the report.
@@ -22,10 +22,12 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+from google.genai import types
 from pydantic import ValidationError
 
 from app.agent.client import PROVIDER, get_client, translate_error
 from app.integrations.errors import UpstreamUnavailable
+from app.agent.tools import as_tool
 from app.schemas.agent import QueryPlan
 from app.schemas.execution import ExecutionResult, ToolResult
 from app.schemas.report import ResearchReport, SynthesisOutput
@@ -75,10 +77,16 @@ Prefer a few substantial sections over many thin ones. Lead with the summary: \
 two or three sentences answering the question directly, before any detail.
 """
 
-# The shapes below mirror app/schemas/report.py. They are described in prose
-# rather than encoded as a oneOf union because models follow a flat schema with
-# clear instructions far more reliably than a branching one, and the Pydantic
-# layer rejects anything that does not conform regardless.
+# The shapes below mirror app/schemas/report.py. They are still not encoded as a
+# `oneOf` union -- models follow a flat schema with clear instructions far more
+# reliably than a branching one, and the Pydantic layer rejects anything that
+# does not conform regardless.
+#
+# What the schema *does* have to carry is the union of every field any section
+# type can use, each marked with the type it belongs to. An `object` with only a
+# description and no `properties` comes back from Gemini as `{}` every time: it
+# will not invent a shape the schema does not name. None are required, because
+# which ones apply depends on the section's own `type`.
 _CONTENT_GUIDE = """\
 An object whose shape depends on this section's type:
 - text: {"text": "..."} -- markdown paragraphs
@@ -88,8 +96,82 @@ An object whose shape depends on this section's type:
 - company_card: {"ticker": "NVDA", "company_name": "NVIDIA Corporation", \
 "metrics": [{"label": "Market cap", "value": "$2.1T"}]}
 - sentiment: {"overall": "positive", "items": [{"headline": "...", \
-"sentiment": "positive", "ticker": "NVDA", "url": "https://..."}]}\
+"sentiment": "positive", "ticker": "NVDA", "url": "https://..."}]}
+
+Set only the fields belonging to this section's type; leave the rest out.\
 """
+
+_SENTIMENT_VALUES = ["positive", "negative", "neutral"]
+
+_CONTENT_PROPERTIES: dict[str, Any] = {
+    "text": {"type": "string", "description": "text sections: markdown paragraphs."},
+    "columns": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "table sections: column headers, leftmost first.",
+    },
+    "rows": {
+        "type": "array",
+        "items": {"type": "array", "items": {"type": "string"}},
+        "description": (
+            "table sections: one array of pre-formatted cell values per row, in the "
+            "same order as columns."
+        ),
+    },
+    "y_label": {"type": "string", "description": "chart sections: y-axis label."},
+    "series": {
+        "type": "array",
+        "description": "chart sections: one entry per line.",
+        "items": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string"},
+                "points": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "date": {"type": "string", "description": "ISO-8601 date."},
+                            "value": {"type": "number"},
+                        },
+                        "required": ["date", "value"],
+                    },
+                },
+            },
+            "required": ["label", "points"],
+        },
+    },
+    "ticker": {"type": "string", "description": "company_card sections."},
+    "company_name": {"type": "string", "description": "company_card sections."},
+    "metrics": {
+        "type": "array",
+        "description": "company_card sections: pre-formatted figures, e.g. '$2.1T'.",
+        "items": {
+            "type": "object",
+            "properties": {"label": {"type": "string"}, "value": {"type": "string"}},
+            "required": ["label"],
+        },
+    },
+    "overall": {
+        "type": "string",
+        "enum": _SENTIMENT_VALUES,
+        "description": "sentiment sections: the net reading across the articles.",
+    },
+    "items": {
+        "type": "array",
+        "description": "sentiment sections: one entry per classified article.",
+        "items": {
+            "type": "object",
+            "properties": {
+                "headline": {"type": "string"},
+                "sentiment": {"type": "string", "enum": _SENTIMENT_VALUES},
+                "ticker": {"type": "string"},
+                "url": {"type": "string"},
+            },
+            "required": ["headline", "sentiment"],
+        },
+    },
+}
 
 OUTPUT_TOOL: dict[str, Any] = {
     "name": EMIT_REPORT,
@@ -118,7 +200,11 @@ OUTPUT_TOOL: dict[str, Any] = {
                             "type": "string",
                             "enum": ["text", "table", "chart", "company_card", "sentiment"],
                         },
-                        "content": {"type": "object", "description": _CONTENT_GUIDE},
+                        "content": {
+                            "type": "object",
+                            "description": _CONTENT_GUIDE,
+                            "properties": _CONTENT_PROPERTIES,
+                        },
                         "confidence": {
                             "type": "string",
                             "enum": ["high", "medium", "low"],
@@ -183,38 +269,44 @@ def _serialise(result: ToolResult) -> str:
     return payload
 
 
-def _build_messages(plan: QueryPlan, execution: ExecutionResult) -> list[dict[str, Any]]:
-    """Replay question -> tool calls -> results as a normal tool-use exchange."""
+def _render_exchange(plan: QueryPlan, execution: ExecutionResult) -> str:
+    """The question and everything retrieved for it, as one block of text.
+
+    Turn 2 is deliberately **not** replayed as a function-call exchange. Gemini
+    requires a `thought_signature` on any function call handed back to it, and
+    the calls here are reconstructed from the planner's output rather than
+    received intact -- the retry below fabricates one outright, which no
+    signature could cover. Presenting the same information as text sidesteps a
+    field we cannot honestly produce.
+
+    Nothing is lost by it: the model is forced to call `emit_report` regardless,
+    so it never needs to believe it made these calls itself. Failures stay
+    visible, which is the property that actually matters -- a report should say
+    a source was unavailable rather than quietly omit it.
+    """
     by_id = {r.tool_use_id: r for r in execution.results}
+    blocks = [f"<question>\n{plan.query}\n</question>", "", "<retrieved_data>"]
 
-    tool_uses = [
-        {"type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments}
-        for call in plan.tool_calls
-    ]
-
-    # Every tool_use must be answered or the API rejects the exchange. A call
-    # with no matching result would only happen through a bug upstream, but it
-    # would surface as an opaque 400, so it is filled in explicitly.
-    tool_results: list[dict[str, Any]] = []
     for call in plan.tool_calls:
         result = by_id.get(call.id)
+        arguments = json.dumps(call.arguments, default=str)
+        blocks.append(f"\n## {call.name}({arguments})")
         if result is None:
-            content, is_error = "This tool did not run.", True
+            # Only reachable through a bug upstream, but silence would read as
+            # "this tool returned nothing", which is a different claim.
+            blocks.append("This tool did not run.")
         else:
-            content, is_error = _serialise(result), result.failed
-        tool_results.append(
-            {
-                "type": "tool_result",
-                "tool_use_id": call.id,
-                "content": content,
-                "is_error": is_error,
-            }
-        )
+            blocks.append(_serialise(result))
 
+    blocks.append("\n</retrieved_data>")
+    return "\n".join(blocks)
+
+
+def _build_contents(plan: QueryPlan, execution: ExecutionResult) -> list[types.Content]:
     return [
-        {"role": "user", "content": plan.query},
-        {"role": "assistant", "content": tool_uses},
-        {"role": "user", "content": tool_results},
+        types.Content(
+            role="user", parts=[types.Part.from_text(text=_render_exchange(plan, execution))]
+        )
     ]
 
 
@@ -251,9 +343,9 @@ def _direct_report(plan: QueryPlan, generated_at: datetime) -> ResearchReport:
 
 def _extract_output(response: Any) -> dict[str, Any] | None:
     """Pull the emit_report arguments out of the response, if it made the call."""
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == EMIT_REPORT:
-            return dict(block.input) if isinstance(block.input, dict) else {}
+    for call in response.function_calls or []:
+        if call.name == EMIT_REPORT:
+            return dict(call.args) if isinstance(call.args, dict) else {}
     return None
 
 
@@ -272,18 +364,30 @@ async def synthesize(plan: QueryPlan, execution: ExecutionResult) -> ResearchRep
 
     settings = get_settings()
     started = time.perf_counter()
-    messages = _build_messages(plan, execution)
+    contents = _build_contents(plan, execution)
     last_error = ""
+
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT,
+        max_output_tokens=MAX_TOKENS,
+        tools=[as_tool([OUTPUT_TOOL])],
+        # ANY plus a single allowed name is what forces the call. Without it the
+        # model is free to answer in prose, and there would be nothing to parse.
+        tool_config=types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(
+                mode=types.FunctionCallingConfigMode.ANY,
+                allowed_function_names=[EMIT_REPORT],
+            )
+        ),
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
 
     for attempt in (1, 2):
         try:
-            response = await get_client().messages.create(
-                model=settings.anthropic_model,
-                max_tokens=MAX_TOKENS,
-                system=SYSTEM_PROMPT,
-                tools=[OUTPUT_TOOL],
-                tool_choice={"type": "tool", "name": EMIT_REPORT},
-                messages=messages,
+            response = await get_client().aio.models.generate_content(
+                model=settings.gemini_model,
+                contents=contents,
+                config=config,
             )
         except Exception as exc:
             raise translate_error(exc) from exc
@@ -313,8 +417,12 @@ async def synthesize(plan: QueryPlan, execution: ExecutionResult) -> ResearchRep
                             "synthesis_latency_ms": round(
                                 (time.perf_counter() - started) * 1000, 2
                             ),
-                            "input_tokens": response.usage.input_tokens,
-                            "output_tokens": response.usage.output_tokens,
+                            "input_tokens": getattr(
+                                response.usage_metadata, "prompt_token_count", None
+                            ),
+                            "output_tokens": getattr(
+                                response.usage_metadata, "candidates_token_count", None
+                            ),
                         }
                     },
                 )
@@ -327,35 +435,27 @@ async def synthesize(plan: QueryPlan, execution: ExecutionResult) -> ResearchRep
                 "synthesis output rejected, retrying",
                 extra={"context": {"error": last_error[:500]}},
             )
-            # Continue the same exchange rather than starting over: the model
-            # sees its own attempt and what was wrong with it.
-            messages = messages + [
-                {
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "tool_use",
-                            "id": "toolu_retry",
-                            "name": EMIT_REPORT,
-                            "input": raw or {},
-                        }
-                    ],
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": "toolu_retry",
-                            "content": (
-                                f"That call was rejected:\n\n{last_error[:2000]}\n\n"
+            # Continue the same exchange rather than starting over: the model is
+            # shown its own attempt and what was wrong with it. Quoted back as
+            # text rather than as a function call, for the signature reason in
+            # `_render_exchange`.
+            contents = contents + [
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(
+                            text=(
+                                "Your previous emit_report call was rejected.\n\n"
+                                f"<rejected_call>\n{json.dumps(raw or {}, default=str)[:4000]}\n"
+                                "</rejected_call>\n\n"
+                                f"<validation_errors>\n{last_error[:2000]}\n"
+                                "</validation_errors>\n\n"
                                 "Call emit_report again, corrected. Change only what the "
                                 "errors require."
-                            ),
-                            "is_error": True,
-                        }
+                            )
+                        )
                     ],
-                },
+                )
             ]
 
     raise UpstreamUnavailable(PROVIDER, f"synthesis output failed validation twice: {last_error}")

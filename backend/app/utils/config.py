@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     supabase_jwks_url: str = ""
     database_url: str = ""
 
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-5"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.6-flash"
 
     alpha_vantage_api_key: str = ""
     newsapi_api_key: str = ""

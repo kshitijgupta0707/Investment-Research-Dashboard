@@ -10,8 +10,10 @@ from pydantic import BaseModel, Field
 class PlannedToolCall(BaseModel):
     """One tool the model chose to call.
 
-    `id` is Claude's own tool_use id. It must be echoed back with the result
-    in the synthesis turn, so the model can match each result to its request.
+    `id` is minted by the planner, not by the provider: Gemini does not label
+    its function calls. It carries the result back through the executor so the
+    synthesis turn can pair each result with the request that produced it, so
+    it need only be unique within one plan.
     """
 
     id: str

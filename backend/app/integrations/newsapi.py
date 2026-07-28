@@ -1,6 +1,6 @@
 """Recent news per company, via NewsAPI.
 
-Sentiment is not requested here -- NewsAPI does not supply it, and Claude
+Sentiment is not requested here -- NewsAPI does not supply it, and the LLM
 classifies it from the title and description in a later step.
 """
 

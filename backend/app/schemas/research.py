@@ -27,7 +27,7 @@ class ResearchQueryRequest(BaseModel):
     def _not_blank(cls, value: str) -> str:
         """Whitespace is not a question.
 
-        `min_length` alone would accept "   ", which reaches Claude as an empty
+        `min_length` alone would accept "   ", which reaches the model as an empty
         prompt and comes back as a confused report rather than a 400.
         """
         stripped = value.strip()

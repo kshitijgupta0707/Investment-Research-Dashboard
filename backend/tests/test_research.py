@@ -123,7 +123,7 @@ def agent(monkeypatch: pytest.MonkeyPatch):
                 PlannedToolCall(id=f"toolu_{i}", name=name, arguments={})
                 for i, name in enumerate(state["tools"])
             ],
-            model="claude-sonnet-5",
+            model="gemini-2.5-flash",
         )
 
     async def fake_execute(plan: QueryPlan, ctx: Any = None) -> ExecutionResult:
@@ -237,9 +237,9 @@ async def test_a_successful_run_is_audited(agent) -> None:
 @pytest.mark.parametrize(
     "error",
     [
-        UpstreamUnavailable("anthropic", "credit balance is too low"),
-        UpstreamTimeout("anthropic", "no response within the configured budget"),
-        UpstreamRateLimited("anthropic", "request quota exhausted"),
+        UpstreamUnavailable("gemini", "API key not valid"),
+        UpstreamTimeout("gemini", "no response within the configured budget"),
+        UpstreamRateLimited("gemini", "request quota exhausted"),
     ],
 )
 async def test_provider_failures_propagate(agent, error: Exception) -> None:
@@ -253,7 +253,7 @@ async def test_provider_failures_propagate(agent, error: Exception) -> None:
 
 async def test_a_failed_query_is_still_recorded(agent) -> None:
     """A query that died is exactly the kind a user wants to see in history."""
-    agent["plan_error"] = UpstreamUnavailable("anthropic", "down")
+    agent["plan_error"] = UpstreamUnavailable("gemini", "down")
     pool = FakePool()
 
     with pytest.raises(UpstreamUnavailable):
@@ -266,7 +266,7 @@ async def test_a_failed_query_is_still_recorded(agent) -> None:
 async def test_a_failure_after_planning_records_the_chosen_tools(agent) -> None:
     """Turn 1 succeeded, so which tools it picked is known and worth keeping."""
     agent["tools"] = ["get_market_data", "get_news_sentiment"]
-    agent["synth_error"] = UpstreamTimeout("anthropic", "timed out")
+    agent["synth_error"] = UpstreamTimeout("gemini", "timed out")
     pool = FakePool()
 
     with pytest.raises(UpstreamTimeout):
@@ -277,8 +277,8 @@ async def test_a_failure_after_planning_records_the_chosen_tools(agent) -> None:
 
 
 async def test_a_recording_failure_does_not_mask_the_real_error(agent) -> None:
-    """The caller must learn Claude was down, not that the history insert broke."""
-    agent["plan_error"] = UpstreamUnavailable("anthropic", "down")
+    """The caller must learn the LLM was down, not that the history insert broke."""
+    agent["plan_error"] = UpstreamUnavailable("gemini", "down")
     pool = FakePool(fail_on="research_queries")
 
     with pytest.raises(UpstreamUnavailable, match="down"):
@@ -348,9 +348,9 @@ def test_surrounding_whitespace_is_stripped(client) -> None:
 @pytest.mark.parametrize(
     ("error", "status", "code"),
     [
-        (UpstreamUnavailable("anthropic", "down"), 502, "UPSTREAM_ERROR"),
-        (UpstreamTimeout("anthropic", "slow"), 504, "UPSTREAM_TIMEOUT"),
-        (UpstreamRateLimited("anthropic", "quota"), 429, "RATE_LIMITED"),
+        (UpstreamUnavailable("gemini", "down"), 502, "UPSTREAM_ERROR"),
+        (UpstreamTimeout("gemini", "slow"), 504, "UPSTREAM_TIMEOUT"),
+        (UpstreamRateLimited("gemini", "quota"), 429, "RATE_LIMITED"),
     ],
 )
 def test_provider_failures_map_to_status_codes(
@@ -366,11 +366,11 @@ def test_provider_failures_map_to_status_codes(
 
 def test_provider_messages_are_not_leaked_to_the_caller(client, agent) -> None:
     """An LLM 400 names our model id or billing state. That is not the analyst's business."""
-    agent["plan_error"] = UpstreamUnavailable("anthropic", "credit balance is too low")
+    agent["plan_error"] = UpstreamUnavailable("gemini", "API key not valid")
 
     response = client.post("/api/research/query", json={"query_text": "How is NVIDIA doing?"})
 
-    assert "credit balance" not in response.text
+    assert "API key not valid" not in response.text
     assert response.json()["error"]["message"]
 
 

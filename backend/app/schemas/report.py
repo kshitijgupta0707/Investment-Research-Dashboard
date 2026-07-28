@@ -4,7 +4,7 @@ This module is the only agreement between the backend and the frontend. The
 frontend never parses prose: it switches on `Section.type` and renders the
 matching component, so every shape a section can take is declared here.
 
-Claude is asked for a deliberately loose JSON object and the strictness lives on
+The model is asked for a deliberately loose JSON object; the strictness lives on
 this side. A tool schema tight enough to express these shapes would be a nest of
 `oneOf` branches that models follow unreliably, and a rejected response costs a
 whole retry. Asking for something simple and validating it hard gets the same
@@ -155,7 +155,7 @@ class Section(BaseModel):
 
 
 class SynthesisOutput(BaseModel):
-    """Exactly what Claude is asked to produce -- the prose, nothing else."""
+    """Exactly what the model is asked to produce -- the prose, nothing else."""
 
     summary: str
     sections: list[Section] = Field(default_factory=list)

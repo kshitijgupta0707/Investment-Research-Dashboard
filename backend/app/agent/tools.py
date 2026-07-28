@@ -1,4 +1,4 @@
-"""Tool definitions exposed to Claude during planning.
+"""Tool definitions exposed to the model during planning.
 
 These descriptions are the entire mechanism by which the agent decides which
 data sources a question needs. There is no keyword routing anywhere in the
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
+from google.genai import types
 from pydantic import BaseModel, Field, field_validator
 
 MARKET_DATA = "get_market_data"
@@ -23,8 +24,8 @@ KNOWLEDGE_BASE = "search_knowledge_base"
 
 TOOL_NAMES = (MARKET_DATA, NEWS_SENTIMENT, KNOWLEDGE_BASE)
 
-# Companies the seeded filing corpus covers. Claude is told this explicitly so
-# it does not call the knowledge base for a company we hold nothing on.
+# Companies the seeded filing corpus covers. The model is told this explicitly
+# so it does not call the knowledge base for a company we hold nothing on.
 KB_TICKERS: tuple[str, ...] = ("NVDA", "AMD", "INTC", "TSLA", "JPM", "GS", "MS")
 
 
@@ -79,7 +80,7 @@ TOOL_INPUTS: dict[str, type[BaseModel]] = {
 
 
 def parse_tool_input(name: str, raw: dict[str, Any]) -> BaseModel:
-    """Validate the arguments Claude produced for a tool call.
+    """Validate the arguments the model produced for a tool call.
 
     The model is prompted to follow the schema but is not bound by it, so
     arguments are validated before anything reaches an external provider.
@@ -93,7 +94,12 @@ def parse_tool_input(name: str, raw: dict[str, Any]) -> BaseModel:
 
 
 def build_tool_schemas(kb_tickers: Sequence[str] = KB_TICKERS) -> list[dict[str, Any]]:
-    """Tool definitions in Anthropic tool-use format."""
+    """Tool definitions as plain JSON Schema.
+
+    Deliberately not in any SDK's own type: the descriptions below are the
+    agent's whole routing mechanism and are worth keeping independent of the
+    provider. `to_function_declarations` adapts them at the call site.
+    """
     covered = ", ".join(kb_tickers)
 
     return [
@@ -106,10 +112,15 @@ def build_tool_schemas(kb_tickers: Sequence[str] = KB_TICKERS) -> list[dict[str,
                 "daily historical price series for charting performance over time.\n\n"
                 "Use this when the question asks about price, valuation, market cap, trading "
                 "multiples, or how a stock has performed over a period.\n\n"
+                "Also call this alongside "
+                f"{KNOWLEDGE_BASE} when the question compares companies' financial position "
+                "or balance sheets: the filings carry the reported line items, and this "
+                "supplies the current scale and valuation - market capitalisation, P/E - that "
+                "makes those figures comparable across companies.\n\n"
                 "Do NOT use this for news, announcements or events - use "
                 f"{NEWS_SENTIMENT}. Do NOT use this for qualitative or structural information "
-                "such as risk factors, business strategy, competitive positioning or balance "
-                f"sheet composition - use {KNOWLEDGE_BASE}. Do NOT use this to answer general "
+                "such as risk factors, business strategy or competitive positioning - use "
+                f"{KNOWLEDGE_BASE}. Do NOT use this to answer general "
                 "finance questions that require no company-specific data, such as explaining "
                 "what a financial ratio means; answer those directly instead."
             ),
@@ -216,3 +227,27 @@ def build_tool_schemas(kb_tickers: Sequence[str] = KB_TICKERS) -> list[dict[str,
 
 
 TOOL_SCHEMAS: list[dict[str, Any]] = build_tool_schemas()
+
+
+def to_function_declarations(
+    schemas: Sequence[dict[str, Any]],
+) -> list[types.FunctionDeclaration]:
+    """Adapt the JSON-Schema definitions above into Gemini's tool type.
+
+    `parameters_json_schema` takes the schema verbatim, so nothing is
+    re-expressed here -- the adapter is a rename, which is exactly why the
+    definitions are kept provider-neutral.
+    """
+    return [
+        types.FunctionDeclaration(
+            name=schema["name"],
+            description=schema["description"],
+            parameters_json_schema=schema["input_schema"],
+        )
+        for schema in schemas
+    ]
+
+
+def as_tool(schemas: Sequence[dict[str, Any]]) -> types.Tool:
+    """Gemini takes one `Tool` carrying many declarations, not many tools."""
+    return types.Tool(function_declarations=to_function_declarations(schemas))

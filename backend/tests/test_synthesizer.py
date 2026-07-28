@@ -12,9 +12,10 @@ import json
 from typing import Any
 
 import pytest
+from google.genai import types
 
 from app.agent import synthesizer
-from app.integrations.errors import UpstreamTimeout, UpstreamUnavailable
+from app.integrations.errors import UpstreamRateLimited, UpstreamTimeout, UpstreamUnavailable
 from app.schemas.agent import PlannedToolCall, QueryPlan
 from app.schemas.execution import ExecutionResult, ToolResult
 from app.schemas.report import (
@@ -28,53 +29,61 @@ from app.schemas.report import (
 # --- stubs ------------------------------------------------------------------
 
 
-class Block:
-    def __init__(self, type: str, **kwargs: Any) -> None:
-        self.type = type
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+# Built from the real SDK types, so these fail if the shape the synthesizer
+# reads stops matching what the SDK returns.
 
 
-class Usage:
-    input_tokens = 500
-    output_tokens = 300
+def a_response(*parts: types.Part) -> types.GenerateContentResponse:
+    return types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(role="model", parts=list(parts)),
+                finish_reason=types.FinishReason.STOP,
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=500, candidates_token_count=300
+        ),
+        model_version="gemini-2.5-flash",
+    )
 
 
-class Response:
-    def __init__(self, content: list[Block]) -> None:
-        self.content = content
-        self.model = "claude-sonnet-5"
-        self.stop_reason = "tool_use"
-        self.usage = Usage()
+def emit(payload: dict[str, Any]) -> types.GenerateContentResponse:
+    """A response whose only content is the forced emit_report call."""
+    return a_response(
+        types.Part.from_function_call(name=synthesizer.EMIT_REPORT, args=payload)
+    )
 
 
-def emit(payload: dict[str, Any]) -> Block:
-    return Block("tool_use", id="toolu_out", name=synthesizer.EMIT_REPORT, input=payload)
+def no_call() -> types.GenerateContentResponse:
+    """The model answered in prose instead of calling the tool."""
+    return a_response(types.Part.from_text(text="Here is the report you asked for."))
 
 
 class Recorder:
     """Serves canned responses in order and keeps the requests that produced them."""
 
-    def __init__(self, *responses: Response) -> None:
+    def __init__(self, *responses: types.GenerateContentResponse) -> None:
         self.responses = list(responses)
         self.calls: list[dict[str, Any]] = []
 
-    async def create(self, **kwargs: Any) -> Response:
+    async def generate_content(self, **kwargs: Any) -> types.GenerateContentResponse:
         self.calls.append(kwargs)
         if not self.responses:
             raise AssertionError("model called more times than the test allows")
         return self.responses.pop(0)
 
 
+def _stub_client(monkeypatch: pytest.MonkeyPatch, models: Any) -> None:
+    aio = type("Aio", (), {"models": models})()
+    monkeypatch.setattr(synthesizer, "get_client", lambda: type("Client", (), {"aio": aio})())
+
+
 @pytest.fixture
 def respond_with(monkeypatch: pytest.MonkeyPatch):
-    def apply(*responses: Response) -> Recorder:
+    def apply(*responses: types.GenerateContentResponse) -> Recorder:
         recorder = Recorder(*responses)
-        monkeypatch.setattr(
-            synthesizer,
-            "get_client",
-            lambda: type("C", (), {"messages": recorder})(),
-        )
+        _stub_client(monkeypatch, recorder)
         return recorder
 
     return apply
@@ -83,13 +92,12 @@ def respond_with(monkeypatch: pytest.MonkeyPatch):
 @pytest.fixture
 def fail_with(monkeypatch: pytest.MonkeyPatch):
     def apply(exc: Exception):
-        async def create(**_: Any) -> Response:
+        async def generate_content(**_: Any) -> types.GenerateContentResponse:
             raise exc
 
-        monkeypatch.setattr(
-            synthesizer,
-            "get_client",
-            lambda: type("C", (), {"messages": type("M", (), {"create": staticmethod(create)})()})(),
+        _stub_client(
+            monkeypatch,
+            type("Models", (), {"generate_content": staticmethod(generate_content)})(),
         )
 
     return apply
@@ -105,7 +113,7 @@ def plan_with(*names: str) -> QueryPlan:
             PlannedToolCall(id=f"toolu_{i}", name=name, arguments={"tickers": ["NVDA"]})
             for i, name in enumerate(names)
         ],
-        model="claude-sonnet-5",
+        model="gemini-2.5-flash",
     )
 
 
@@ -145,7 +153,7 @@ VALID_PAYLOAD: dict[str, Any] = {
 
 
 async def test_valid_output_becomes_a_report(respond_with) -> None:
-    respond_with(Response([emit(VALID_PAYLOAD)]))
+    respond_with(emit(VALID_PAYLOAD))
 
     report = await synthesizer.synthesize(
         plan_with("get_market_data"),
@@ -161,7 +169,7 @@ async def test_valid_output_becomes_a_report(respond_with) -> None:
 
 async def test_generated_at_is_set_by_the_backend(respond_with) -> None:
     """The model is never asked for the timestamp, so it is always present."""
-    respond_with(Response([emit(VALID_PAYLOAD)]))
+    respond_with(emit(VALID_PAYLOAD))
 
     report = await synthesizer.synthesize(
         plan_with("get_market_data"),
@@ -193,8 +201,6 @@ async def test_each_section_type_parses_to_its_own_model(
     respond_with, section_type: str, content: dict[str, Any], expected: type
 ) -> None:
     respond_with(
-        Response(
-            [
                 emit(
                     {
                         "summary": "s",
@@ -209,8 +215,6 @@ async def test_each_section_type_parses_to_its_own_model(
                         ],
                     }
                 )
-            ]
-        )
     )
 
     report = await synthesizer.synthesize(
@@ -224,8 +228,6 @@ async def test_each_section_type_parses_to_its_own_model(
 async def test_text_content_survives_as_a_bare_string(respond_with) -> None:
     """Models commonly send content as a plain string; accepting it avoids a retry."""
     respond_with(
-        Response(
-            [
                 emit(
                     {
                         "summary": "s",
@@ -240,8 +242,6 @@ async def test_text_content_survives_as_a_bare_string(respond_with) -> None:
                         ],
                     }
                 )
-            ]
-        )
     )
 
     report = await synthesizer.synthesize(
@@ -254,8 +254,6 @@ async def test_text_content_survives_as_a_bare_string(respond_with) -> None:
 
 async def test_ragged_table_rows_are_padded_not_rejected(respond_with) -> None:
     respond_with(
-        Response(
-            [
                 emit(
                     {
                         "summary": "s",
@@ -273,8 +271,6 @@ async def test_ragged_table_rows_are_padded_not_rejected(respond_with) -> None:
                         ],
                     }
                 )
-            ]
-        )
     )
 
     report = await synthesizer.synthesize(
@@ -293,7 +289,7 @@ async def test_ragged_table_rows_are_padded_not_rejected(respond_with) -> None:
 async def test_failed_tools_come_from_execution_not_the_model(respond_with) -> None:
     """The model cannot talk the report out of being partial."""
     lying = {**VALID_PAYLOAD, "partial": False, "failed_tools": []}
-    respond_with(Response([emit(lying)]))
+    respond_with(emit(lying))
 
     report = await synthesizer.synthesize(
         plan_with("get_market_data", "get_news_sentiment"),
@@ -309,7 +305,7 @@ async def test_failed_tools_come_from_execution_not_the_model(respond_with) -> N
 
 async def test_a_report_built_on_nothing_is_still_partial(respond_with) -> None:
     """Every tool failing is more degraded than some failing, not less."""
-    respond_with(Response([emit(VALID_PAYLOAD)]))
+    respond_with(emit(VALID_PAYLOAD))
 
     report = await synthesizer.synthesize(
         plan_with("get_market_data"),
@@ -321,7 +317,7 @@ async def test_a_report_built_on_nothing_is_still_partial(respond_with) -> None:
 
 
 async def test_a_clean_run_is_not_partial(respond_with) -> None:
-    respond_with(Response([emit(VALID_PAYLOAD)]))
+    respond_with(emit(VALID_PAYLOAD))
 
     report = await synthesizer.synthesize(
         plan_with("get_market_data"),
@@ -333,53 +329,114 @@ async def test_a_clean_run_is_not_partial(respond_with) -> None:
 
 
 # --- what the model is shown ------------------------------------------------
+#
+# Turn 2 is one user turn of text, not a replayed function-call exchange --
+# Gemini requires a thought_signature on any function call handed back to it,
+# and these are reconstructed rather than received. These assert on the text.
 
 
-async def test_tool_failures_are_shown_to_the_model(respond_with) -> None:
-    """A failed tool must reach the model so the report can admit the gap."""
-    recorder = respond_with(Response([emit(VALID_PAYLOAD)]))
-
-    await synthesizer.synthesize(
-        plan_with("get_news_sentiment"),
-        execution_with(failed_result("toolu_0", "get_news_sentiment", "rate limited")),
-    )
-
-    results = recorder.calls[0]["messages"][2]["content"]
-    assert results[0]["is_error"] is True
-    assert "rate limited" in results[0]["content"]
+def _prompt(call: dict[str, Any]) -> str:
+    """The text of the first (and only) content block sent."""
+    return call["contents"][0].parts[0].text
 
 
-async def test_every_tool_call_gets_a_result_block(respond_with) -> None:
-    """An unanswered tool_use is a 400 from the API, so gaps are filled in."""
-    recorder = respond_with(Response([emit(VALID_PAYLOAD)]))
-
-    await synthesizer.synthesize(
-        plan_with("get_market_data", "get_news_sentiment"),
-        execution_with(ok_result("toolu_0", "get_market_data", {})),  # toolu_1 missing
-    )
-
-    sent = recorder.calls[0]["messages"]
-    used = [b["id"] for b in sent[1]["content"]]
-    answered = [b["tool_use_id"] for b in sent[2]["content"]]
-    assert used == answered == ["toolu_0", "toolu_1"]
-    assert sent[2]["content"][1]["is_error"] is True
-
-
-async def test_output_is_forced_through_the_emit_tool(respond_with) -> None:
-    recorder = respond_with(Response([emit(VALID_PAYLOAD)]))
+async def test_the_question_reaches_the_model(respond_with) -> None:
+    recorder = respond_with(emit(VALID_PAYLOAD))
 
     await synthesizer.synthesize(
         plan_with("get_market_data"),
         execution_with(ok_result("toolu_0", "get_market_data", {})),
     )
 
-    call = recorder.calls[0]
-    assert call["tool_choice"] == {"type": "tool", "name": synthesizer.EMIT_REPORT}
-    assert [t["name"] for t in call["tools"]] == [synthesizer.EMIT_REPORT]
+    assert "How is NVIDIA doing?" in _prompt(recorder.calls[0])
+
+
+async def test_no_function_call_is_replayed(respond_with) -> None:
+    """A reconstructed call has no thought_signature, which Gemini 3 rejects."""
+    recorder = respond_with(emit(VALID_PAYLOAD))
+
+    await synthesizer.synthesize(
+        plan_with("get_market_data"),
+        execution_with(ok_result("toolu_0", "get_market_data", {})),
+    )
+
+    parts = [p for c in recorder.calls[0]["contents"] for p in c.parts]
+    assert all(p.function_call is None for p in parts)
+    assert all(p.function_response is None for p in parts)
+
+
+async def test_tool_failures_are_shown_to_the_model(respond_with) -> None:
+    """A failed tool must reach the model so the report can admit the gap."""
+    recorder = respond_with(emit(VALID_PAYLOAD))
+
+    await synthesizer.synthesize(
+        plan_with("get_news_sentiment"),
+        execution_with(failed_result("toolu_0", "get_news_sentiment", "rate limited")),
+    )
+
+    prompt = _prompt(recorder.calls[0])
+    assert "get_news_sentiment" in prompt
+    assert "rate limited" in prompt
+    assert "failed" in prompt.lower(), "a failure must not read as an empty result"
+
+
+async def test_a_successful_result_reaches_the_model(respond_with) -> None:
+    recorder = respond_with(emit(VALID_PAYLOAD))
+
+    await synthesizer.synthesize(
+        plan_with("get_market_data"),
+        execution_with(ok_result("toolu_0", "get_market_data", {"pe": 62.1})),
+    )
+
+    assert "62.1" in _prompt(recorder.calls[0])
+
+
+async def test_every_tool_call_is_accounted_for(respond_with) -> None:
+    """Silence about an unrun tool would read as 'it returned nothing'."""
+    recorder = respond_with(emit(VALID_PAYLOAD))
+
+    await synthesizer.synthesize(
+        plan_with("get_market_data", "get_news_sentiment"),
+        execution_with(ok_result("toolu_0", "get_market_data", {})),  # toolu_1 missing
+    )
+
+    prompt = _prompt(recorder.calls[0])
+    assert "get_market_data" in prompt and "get_news_sentiment" in prompt
+    assert "did not run" in prompt
+
+
+async def test_output_is_forced_through_the_emit_tool(respond_with) -> None:
+    recorder = respond_with(emit(VALID_PAYLOAD))
+
+    await synthesizer.synthesize(
+        plan_with("get_market_data"),
+        execution_with(ok_result("toolu_0", "get_market_data", {})),
+    )
+
+    config = recorder.calls[0]["config"]
+    calling = config.tool_config.function_calling_config
+
+    # ANY plus a single allowed name is what removes the prose option.
+    assert calling.mode == types.FunctionCallingConfigMode.ANY
+    assert calling.allowed_function_names == [synthesizer.EMIT_REPORT]
+    declared = [d.name for tool in config.tools for d in tool.function_declarations]
+    assert declared == [synthesizer.EMIT_REPORT]
+
+
+async def test_the_sdk_does_not_invoke_tools_itself(respond_with) -> None:
+    """We run tools ourselves; the SDK's own loop would try to call schemas."""
+    recorder = respond_with(emit(VALID_PAYLOAD))
+
+    await synthesizer.synthesize(
+        plan_with("get_market_data"),
+        execution_with(ok_result("toolu_0", "get_market_data", {})),
+    )
+
+    assert recorder.calls[0]["config"].automatic_function_calling.disable is True
 
 
 async def test_oversized_results_are_truncated(respond_with) -> None:
-    recorder = respond_with(Response([emit(VALID_PAYLOAD)]))
+    recorder = respond_with(emit(VALID_PAYLOAD))
     bulky = {"points": [{"date": "2026-01-01", "value": i} for i in range(20_000)]}
     assert len(json.dumps(bulky)) > synthesizer.MAX_TOOL_RESULT_CHARS
 
@@ -388,9 +445,9 @@ async def test_oversized_results_are_truncated(respond_with) -> None:
         execution_with(ok_result("toolu_0", "get_market_data", bulky)),
     )
 
-    sent = recorder.calls[0]["messages"][2]["content"][0]["content"]
+    sent = _prompt(recorder.calls[0])
     assert "truncated" in sent
-    assert len(sent) < synthesizer.MAX_TOOL_RESULT_CHARS + 200
+    assert len(sent) < synthesizer.MAX_TOOL_RESULT_CHARS + 500
 
 
 # --- retry ------------------------------------------------------------------
@@ -398,8 +455,8 @@ async def test_oversized_results_are_truncated(respond_with) -> None:
 
 async def test_malformed_output_is_retried_once_and_can_succeed(respond_with) -> None:
     recorder = respond_with(
-        Response([emit({"summary": "s", "sections": [{"title": "T"}]})]),  # invalid section
-        Response([emit(VALID_PAYLOAD)]),
+        emit({"summary": "s", "sections": [{"title": "T"}]}),  # invalid section
+        emit(VALID_PAYLOAD),
     )
 
     report = await synthesizer.synthesize(
@@ -413,8 +470,8 @@ async def test_malformed_output_is_retried_once_and_can_succeed(respond_with) ->
 
 async def test_the_retry_shows_the_model_its_own_errors(respond_with) -> None:
     recorder = respond_with(
-        Response([emit({"summary": "s", "sections": [{"title": "T"}]})]),
-        Response([emit(VALID_PAYLOAD)]),
+        emit({"summary": "s", "sections": [{"title": "T"}]}),
+        emit(VALID_PAYLOAD),
     )
 
     await synthesizer.synthesize(
@@ -422,15 +479,19 @@ async def test_the_retry_shows_the_model_its_own_errors(respond_with) -> None:
         execution_with(ok_result("toolu_0", "get_market_data", {})),
     )
 
-    feedback = recorder.calls[1]["messages"][-1]["content"][0]
-    assert feedback["is_error"] is True
-    assert "rejected" in feedback["content"]
+    # The retry continues the same exchange: the model is shown its own
+    # rejected output alongside the validation errors.
+    feedback = recorder.calls[1]["contents"][-1].parts[0].text
+
+    assert "rejected" in feedback
+    assert "<validation_errors>" in feedback
+    assert "sections" in feedback, "the model should see what it actually sent"
 
 
 async def test_two_malformed_outputs_raise(respond_with) -> None:
     recorder = respond_with(
-        Response([emit({"sections": []})]),
-        Response([emit({"sections": []})]),
+        emit({"sections": []}),
+        emit({"sections": []}),
     )
 
     with pytest.raises(UpstreamUnavailable, match="failed validation twice"):
@@ -444,8 +505,8 @@ async def test_two_malformed_outputs_raise(respond_with) -> None:
 
 async def test_a_missing_tool_call_is_treated_as_malformed(respond_with) -> None:
     recorder = respond_with(
-        Response([Block("text", text="Here is the report:")]),
-        Response([emit(VALID_PAYLOAD)]),
+        no_call(),
+        emit(VALID_PAYLOAD),
     )
 
     report = await synthesizer.synthesize(
@@ -458,10 +519,9 @@ async def test_a_missing_tool_call_is_treated_as_malformed(respond_with) -> None
 
 
 async def test_provider_errors_are_translated(fail_with) -> None:
-    import anthropic
     import httpx
 
-    fail_with(anthropic.APITimeoutError(request=httpx.Request("POST", "https://api.anthropic.com")))
+    fail_with(httpx.TimeoutException("timed out"))
 
     # Timeouts keep their own class all the way to the route, where they become
     # a 504 rather than a generic 502.
@@ -470,7 +530,7 @@ async def test_provider_errors_are_translated(fail_with) -> None:
             plan_with("get_market_data"),
             execution_with(ok_result("toolu_0", "get_market_data", {})),
         )
-    assert "anthropic" in str(exc.value)
+    assert "gemini" in str(exc.value)
 
 
 # --- the zero-tool path -----------------------------------------------------
@@ -484,7 +544,7 @@ async def test_a_direct_answer_needs_no_second_call(respond_with) -> None:
         query="What is a P/E ratio?",
         tool_calls=[],
         direct_answer="Price divided by earnings per share.",
-        model="claude-sonnet-5",
+        model="gemini-2.5-flash",
     )
     report = await synthesizer.synthesize(plan, ExecutionResult())
 
@@ -502,7 +562,7 @@ async def test_a_direct_answer_still_matches_the_contract(respond_with) -> None:
         query="What is a P/E ratio?",
         tool_calls=[],
         direct_answer="Price over earnings.",
-        model="claude-sonnet-5",
+        model="gemini-2.5-flash",
     )
     report = await synthesizer.synthesize(plan, ExecutionResult())
 
@@ -521,7 +581,7 @@ async def test_a_direct_answer_still_matches_the_contract(respond_with) -> None:
 async def test_an_empty_direct_answer_yields_no_sections(respond_with) -> None:
     respond_with()
 
-    plan = QueryPlan(query="?", tool_calls=[], direct_answer=None, model="claude-sonnet-5")
+    plan = QueryPlan(query="?", tool_calls=[], direct_answer=None, model="gemini-2.5-flash")
     report = await synthesizer.synthesize(plan, ExecutionResult())
 
     assert report.sections == []
@@ -536,11 +596,11 @@ async def test_live_synthesis_conforms_to_the_schema(settings) -> None:
     """Proves the API accepts OUTPUT_TOOL and the model can satisfy it.
 
     The stubbed tests above validate our parsing; only this one validates the
-    tool schema itself, which no amount of mocking can check. Needs a funded
-    ANTHROPIC_API_KEY; skips otherwise.
+    tool schema itself, which no amount of mocking can check. Needs a working
+    GEMINI_API_KEY; skips otherwise.
     """
-    if not settings.anthropic_api_key:
-        pytest.skip("ANTHROPIC_API_KEY is not configured")
+    if not settings.gemini_api_key:
+        pytest.skip("GEMINI_API_KEY is not configured")
 
     plan = QueryPlan(
         query="How is NVIDIA performing, and what does recent coverage say?",
@@ -550,7 +610,7 @@ async def test_live_synthesis_conforms_to_the_schema(settings) -> None:
                 id="toolu_1", name="get_news_sentiment", arguments={"tickers": ["NVDA"]}
             ),
         ],
-        model="claude-sonnet-5",
+        model="gemini-2.5-flash",
     )
     execution = execution_with(
         ok_result(
@@ -575,9 +635,11 @@ async def test_live_synthesis_conforms_to_the_schema(settings) -> None:
 
     try:
         report = await synthesizer.synthesize(plan, execution)
+    except UpstreamRateLimited:
+        pytest.skip("Gemini free-tier rate limit reached")
     except UpstreamUnavailable as exc:
-        if "credit balance" in str(exc):
-            pytest.skip("Anthropic account has no credit")
+        if "quota" in str(exc).lower():
+            pytest.skip("Gemini quota exhausted")
         raise
 
     assert report.summary

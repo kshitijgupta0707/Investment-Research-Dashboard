@@ -31,6 +31,25 @@ def settings() -> Settings:
     return get_settings()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_llm_client() -> Iterator[None]:
+    """Drop the cached Gemini client between tests.
+
+    The client is `lru_cache`d so one connection pool is shared across requests,
+    which is right under uvicorn -- one event loop for the process lifetime. But
+    pytest-asyncio gives every test its own loop, so a client cached by an
+    earlier test holds a pool bound to a loop that has since closed, and the
+    next live call fails with "Event loop is closed".
+    """
+    from app.agent.client import get_client
+
+    get_client.cache_clear()
+    try:
+        yield
+    finally:
+        get_client.cache_clear()
+
+
 @pytest.fixture(scope="session")
 def requires_db(settings: Settings) -> None:
     if not settings.database_url:

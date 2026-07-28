@@ -1,7 +1,8 @@
-"""Classifying news sentiment with Claude.
+"""Classifying news sentiment with the LLM.
 
-The brief requires sentiment to come from Claude itself rather than a separate
-model, so this reads each article's title and description and labels it.
+The brief requires sentiment to come from the language model itself rather than
+a separate classifier, so this reads each article's title and description and
+labels it.
 
 Two decisions shape the module:
 
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 import logging
 
+from google.genai import types
 from pydantic import BaseModel
 
 from app.agent.client import get_client, translate_error
@@ -67,20 +69,28 @@ def _prompt_for(articles: list[Article], ticker: str) -> str:
 
 
 async def _classify_batch(articles: list[Article], ticker: str) -> dict[int, Sentiment]:
-    """Label one batch. Raises on API failure; the caller degrades."""
-    response = await get_client().messages.parse(
-        model=get_settings().anthropic_model,
-        max_tokens=MAX_TOKENS,
-        system=SYSTEM_PROMPT,
-        # No tools are involved, so disabling thinking is safe here -- unlike
-        # the planner, where it would suppress tool selection.
-        thinking={"type": "disabled"},
-        messages=[{"role": "user", "content": _prompt_for(articles, ticker)}],
-        output_format=_SentimentBatch,
+    """Label one batch. Raises on API failure; the caller degrades.
+
+    Constrained decoding rather than a tool call: the output is a fixed shape
+    with no branching, which `response_schema` expresses directly from the
+    Pydantic model.
+    """
+    response = await get_client().aio.models.generate_content(
+        model=get_settings().gemini_model,
+        contents=_prompt_for(articles, ticker),
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            max_output_tokens=MAX_TOKENS,
+            response_mime_type="application/json",
+            response_schema=_SentimentBatch,
+            # No thinking_config: Gemini 3 models reject `thinking_budget=0`
+            # with a bare 400, so thinking depth is left to the model. Cost is
+            # bounded by batching instead -- one request per 25 articles.
+        ),
     )
 
-    parsed = response.parsed_output
-    if parsed is None:
+    parsed = response.parsed
+    if not isinstance(parsed, _SentimentBatch):
         raise ValueError("model returned no parsable classification")
 
     # Ignore indices the model invented; keep whatever lines up.

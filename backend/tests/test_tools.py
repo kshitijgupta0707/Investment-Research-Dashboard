@@ -1,6 +1,6 @@
 """Tool schemas and input validation.
 
-The schemas are what Claude reads when choosing tools, so these tests guard
+The schemas are what the model reads when choosing tools, so these tests guard
 their structure and the guidance the descriptions must carry. Whether the
 model actually chooses correctly is tested against the acceptance queries in
 the planner tests.
