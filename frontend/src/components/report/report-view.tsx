@@ -4,6 +4,7 @@ import type { ResearchReport, Section } from "@/lib/api/types";
 import { absoluteTime } from "@/lib/format";
 
 import { ConfidenceIndicator } from "./confidence-indicator";
+import { DataFreshnessLabel } from "./data-freshness-label";
 import { SectionContent } from "./section-content";
 import { SourceList } from "./source-tag";
 
@@ -15,6 +16,10 @@ import { SourceList } from "./source-tag";
  * storing the structured result rather than prose.
  */
 export function ReportView({ report }: { report: ResearchReport }) {
+  // Captured once so every freshness label on the page measures from the same
+  // instant, and so a server render and its hydration agree.
+  const now = Date.now();
+
   return (
     <article className="space-y-6">
       <PartialBanner failedTools={report.failed_tools} />
@@ -22,7 +27,7 @@ export function ReportView({ report }: { report: ResearchReport }) {
       <p className="text-[15px] leading-relaxed">{report.summary}</p>
 
       {report.sections.map((section, index) => (
-        <ReportSection key={`${section.title}-${index}`} section={section} />
+        <ReportSection key={`${section.title}-${index}`} section={section} now={now} />
       ))}
 
       {/* A report is a snapshot. §3.10 asks for the date it speaks for to be
@@ -34,12 +39,17 @@ export function ReportView({ report }: { report: ResearchReport }) {
   );
 }
 
-function ReportSection({ section }: { section: Section }) {
+function ReportSection({ section, now }: { section: Section; now: number }) {
   return (
     <Card className="bg-surface/40">
       <CardContent className="pt-5">
         <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-display text-[15px] font-medium tracking-tight">{section.title}</h3>
+          <div>
+            <h3 className="font-display text-[15px] font-medium tracking-tight">
+              {section.title}
+            </h3>
+            <DataFreshnessLabel sources={section.sources} now={now} className="mt-0.5 block" />
+          </div>
           <ConfidenceIndicator level={section.confidence} />
         </header>
 
