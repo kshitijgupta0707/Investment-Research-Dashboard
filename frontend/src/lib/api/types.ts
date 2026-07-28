@@ -97,3 +97,94 @@ export interface WatchlistEntry {
   company_name: string | null;
   created_at: string;
 }
+
+/* --- the Turn-2 report contract ------------------------------------------
+ *
+ * This mirrors `backend/app/schemas/report.py` and is the only agreement
+ * between the agent and this UI. Nothing here parses prose: a section carries
+ * its `type`, and the renderer switches on it.
+ */
+
+export type Confidence = "high" | "medium" | "low";
+export type SectionType = "text" | "table" | "chart" | "company_card" | "sentiment";
+export type SourceType = "api" | "article" | "filing";
+export type Sentiment = "positive" | "negative" | "neutral";
+
+/** Where one section's claims came from. Attribution is per section. */
+export interface Source {
+  type: SourceType;
+  label: string;
+  url: string | null;
+  /** When the provider said its data was current. Null for filings. */
+  data_as_of: string | null;
+}
+
+export interface TextContent {
+  text: string;
+}
+
+export interface TableContent {
+  columns: string[];
+  rows: Array<Array<string | number | null>>;
+}
+
+export interface ChartPoint {
+  date: string;
+  value: number;
+}
+
+export interface ChartContent {
+  series: Array<{ label: string; points: ChartPoint[] }>;
+  y_label: string | null;
+}
+
+export interface CompanyCardContent {
+  ticker: string;
+  company_name: string | null;
+  /** Pre-formatted for display -- "$2.1T", not 2_100_000_000_000. */
+  metrics: Array<{ label: string; value: string | null }>;
+}
+
+export interface SentimentContent {
+  items: Array<{
+    headline: string;
+    sentiment: Sentiment;
+    ticker: string | null;
+    url: string | null;
+  }>;
+  overall: Sentiment | null;
+}
+
+export type SectionContent =
+  | TextContent
+  | TableContent
+  | ChartContent
+  | CompanyCardContent
+  | SentimentContent;
+
+export interface Section {
+  title: string;
+  type: SectionType;
+  content: SectionContent;
+  confidence: Confidence;
+  sources: Source[];
+}
+
+export interface ResearchReport {
+  summary: string;
+  sections: Section[];
+  /** True when any tool failed. The backend sets this, never the model. */
+  partial: boolean;
+  failed_tools: string[];
+  generated_at: string;
+}
+
+/** What `POST /api/research/query` returns: the report plus its provenance. */
+export interface ResearchQueryResponse {
+  query_id: string;
+  query_text: string;
+  tools_selected: string[];
+  status: QueryStatus;
+  latency_ms: number;
+  report: ResearchReport;
+}
