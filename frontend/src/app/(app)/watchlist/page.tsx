@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Star } from "lucide-react";
 
-import { WidgetError } from "@/components/dashboard";
-import { EmptyState } from "@/components/empty-state";
+import { EmptyState, ErrorState } from "@/components/states";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { AddTicker } from "@/components/watchlist/add-ticker";
@@ -38,7 +37,7 @@ export default async function WatchlistPage() {
     return (
       <>
         <PageHeader title="Watchlist" description="The companies you follow." />
-        <WidgetError detail={messageFor(error)} />
+        <ErrorState detail={messageFor(error)} />
       </>
     );
   }

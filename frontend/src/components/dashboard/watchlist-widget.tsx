@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { Star } from "lucide-react";
 
-import { EmptyState } from "@/components/empty-state";
+import { EmptyState, ErrorState } from "@/components/states";
 import { messageFor } from "@/lib/api/errors";
 import { getWatchlist } from "@/lib/api/resources";
 import type { WatchlistEntry } from "@/lib/api/types";
 import { routes } from "@/lib/routes";
 
-import { Widget, WidgetError } from "./index";
+import { Widget } from "./index";
 
 /** A pre-filled research question, so a pinned ticker is one click from an answer. */
 function analyseHref(entry: WatchlistEntry): string {
@@ -24,7 +24,7 @@ export async function WatchlistWidget() {
   } catch (error) {
     return (
       <Widget title="Watchlist">
-        <WidgetError detail={messageFor(error)} />
+        <ErrorState inline detail={messageFor(error)} />
       </Widget>
     );
   }

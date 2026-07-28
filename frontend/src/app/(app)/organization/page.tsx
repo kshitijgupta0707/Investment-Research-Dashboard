@@ -4,6 +4,7 @@ import { Lock } from "lucide-react";
 import { InviteManager } from "@/components/org/invite-manager";
 import { MemberList } from "@/components/org/member-list";
 import { PageHeader } from "@/components/page-header";
+import { ErrorState } from "@/components/states";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError, messageFor } from "@/lib/api/errors";
 import { getInvites, getMembers, getOrganization } from "@/lib/api/resources";
@@ -40,7 +41,7 @@ export default async function OrganizationPage() {
     return (
       <>
         <PageHeader title="Organization" description="Members and invite codes." />
-        <p className="text-sm text-down">{messageFor(error)}</p>
+        <ErrorState detail={messageFor(error)} />
       </>
     );
   }

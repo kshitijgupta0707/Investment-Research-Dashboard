@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FileText } from "lucide-react";
 
-import { EmptyState } from "@/components/empty-state";
+import { EmptyState, ErrorState } from "@/components/states";
 import { TagList } from "@/components/reports/tag-list";
 import { messageFor } from "@/lib/api/errors";
 import { getRecentReports } from "@/lib/api/resources";
@@ -9,7 +9,7 @@ import type { ReportSummary } from "@/lib/api/types";
 import { absoluteTime, isStale, relativeTime, truncate } from "@/lib/format";
 import { routes } from "@/lib/routes";
 
-import { Widget, WidgetError } from "./index";
+import { Widget } from "./index";
 
 /**
  * Recently saved reports across the whole organization.
@@ -24,7 +24,7 @@ export async function RecentReports({ now }: { now: number }) {
   } catch (error) {
     return (
       <Widget title="Saved reports">
-        <WidgetError detail={messageFor(error)} />
+        <ErrorState inline detail={messageFor(error)} />
       </Widget>
     );
   }

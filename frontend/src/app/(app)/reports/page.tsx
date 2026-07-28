@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { FileText, SearchX } from "lucide-react";
 
-import { WidgetError } from "@/components/dashboard";
-import { EmptyState } from "@/components/empty-state";
+import { EmptyState, ErrorState } from "@/components/states";
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/reports/pagination";
 import { ReportCard } from "@/components/reports/report-card";
@@ -40,7 +39,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
     return (
       <>
         <PageHeader title="Saved reports" description="Every report saved in your workspace." />
-        <WidgetError detail={messageFor(error)} />
+        <ErrorState detail={messageFor(error)} />
       </>
     );
   }

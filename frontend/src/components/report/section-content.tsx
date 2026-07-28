@@ -13,6 +13,7 @@ import type {
 } from "@/lib/api/types";
 
 import { CompanyCard } from "./company-card";
+import { Prose } from "./prose";
 import { ComparisonTable } from "./comparison-table";
 import { SentimentList } from "./sentiment-list";
 
@@ -76,17 +77,3 @@ function assertNever(type: never) {
   );
 }
 
-/** Paragraph-per-blank-line. The model writes prose, not HTML. */
-function Prose({ text }: { text: string }) {
-  const paragraphs = text.split(/\n{2,}/).filter((part) => part.trim());
-
-  return (
-    <div className="space-y-3">
-      {paragraphs.map((paragraph, index) => (
-        <p key={index} className="text-[13.5px] leading-relaxed text-muted-foreground">
-          {paragraph.trim()}
-        </p>
-      ))}
-    </div>
-  );
-}

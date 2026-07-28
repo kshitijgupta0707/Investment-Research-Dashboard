@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 
-import { EmptyState } from "@/components/empty-state";
+import { EmptyState, ErrorState } from "@/components/states";
 import { StatusDot } from "@/components/research/status-dot";
 import { ToolBadges } from "@/components/research/tool-badges";
 import { getRecentQueries } from "@/lib/api/resources";
@@ -9,7 +9,7 @@ import { messageFor } from "@/lib/api/errors";
 import { absoluteTime, relativeTime, seconds, truncate } from "@/lib/format";
 import { routes } from "@/lib/routes";
 
-import { Widget, WidgetError } from "./index";
+import { Widget } from "./index";
 
 /**
  * The last few questions this analyst asked, saved or not.
@@ -24,7 +24,7 @@ export async function RecentQueries({ now }: { now: number }) {
   } catch (error) {
     return (
       <Widget title="Recent queries">
-        <WidgetError detail={messageFor(error)} />
+        <ErrorState inline detail={messageFor(error)} />
       </Widget>
     );
   }
