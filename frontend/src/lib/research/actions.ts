@@ -1,11 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-
 import { apiFetch } from "@/lib/api/client";
 import { messageFor } from "@/lib/api/errors";
 import type { ReportSummary, ResearchQueryResponse } from "@/lib/api/types";
-import { routes } from "@/lib/routes";
 import { getAccessToken } from "@/lib/supabase/server";
 
 import { MAX_QUERY_CHARS, MIN_QUERY_CHARS, type ResearchState, type SaveState } from "./schema";
@@ -42,10 +39,8 @@ export async function runQuery(_previous: ResearchState, formData: FormData): Pr
       body: { query_text: queryText },
     });
 
-    // The dashboard's recent-queries panel is now stale -- every run is
-    // recorded in history, successful or not.
-    revalidatePath(routes.dashboard);
-
+    // No `revalidatePath`: it re-renders the route tree, which resets the
+    // `useFormState` holding this result. Reads are `no-store` anyway.
     return { status: "done", result, queryText };
   } catch (error) {
     return { status: "error", message: messageFor(error), queryText };
@@ -76,9 +71,7 @@ export async function saveReport(_previous: SaveState, formData: FormData): Prom
       body: { query_text: queryText, structured_result: JSON.parse(payload), tags },
     });
 
-    revalidatePath(routes.dashboard);
-    revalidatePath(routes.reports);
-
+    // No `revalidatePath`, same reason as `runQuery`.
     return { status: "saved", reportId: saved.id };
   } catch (error) {
     return { status: "error", message: messageFor(error) };
