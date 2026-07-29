@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   return (
     <>
       <PageHeader
-        title={greeting(user?.email)}
+        title={greeting(user?.name, user?.email)}
         description="Recent research, saved reports and the companies you follow."
       />
 
@@ -56,8 +56,18 @@ export default async function DashboardPage() {
   );
 }
 
-/** First name from the address, when there is one worth using. */
-function greeting(email: string | undefined): string {
+/**
+ * Greet by first name, falling back to the address.
+ *
+ * The stored name wins when there is one: deriving "Analyst" from
+ * `analyst@northwind.test` is technically a name and obviously not the
+ * person's. The address is only used when the account has no name at all,
+ * which happens when someone signs up without filling the optional field.
+ */
+function greeting(name: string | null | undefined, email: string | undefined): string {
+  const firstName = name?.trim().split(/\s+/)[0];
+  if (firstName) return `Welcome back, ${firstName}`;
+
   const handle = email?.split("@")[0]?.split(/[._-]/)[0];
   if (!handle) return "Dashboard";
   return `Welcome back, ${handle.charAt(0).toUpperCase()}${handle.slice(1)}`;

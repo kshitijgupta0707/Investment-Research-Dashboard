@@ -37,6 +37,9 @@ class CurrentUser(BaseModel):
     id: UUID
     auth_id: UUID
     email: str
+    # Optional because signup does not require it -- a user who joined with only
+    # an address has no name, and the UI falls back to the address.
+    name: str | None = None
     org_id: UUID
     role: Role
 

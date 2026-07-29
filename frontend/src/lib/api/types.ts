@@ -27,6 +27,8 @@ export interface CurrentUser {
   id: string;
   auth_id: string;
   email: string;
+  /** Null when the account was created without one. */
+  name: string | null;
   org_id: string;
   role: Role;
 }
@@ -61,8 +63,6 @@ export const TOOL = {
   knowledgeBase: "search_knowledge_base",
 } as const;
 
-export type ToolName = (typeof TOOL)[keyof typeof TOOL];
-
 export type QueryStatus = "success" | "partial" | "failed";
 
 /**
@@ -89,6 +89,8 @@ export interface ReportSummary {
   created_by_email: string;
   created_at: string;
   updated_at: string;
+  /** Whether an analyst note exists. The text itself is only on the detail. */
+  has_notes: boolean;
 }
 
 /** A member of the organization. Admin-only read. */
@@ -207,9 +209,18 @@ export interface ResearchReport {
   generated_at: string;
 }
 
-/** A saved report with its full structured result. */
+/**
+ * A saved report with its full structured result.
+ *
+ * `analyst_notes` sits beside `structured_result`, never inside it. The agent's
+ * output is the record of what was retrieved and stays immutable; a person's
+ * commentary is a separate, separately-attributed layer.
+ */
 export interface ReportDetail extends ReportSummary {
   structured_result: ResearchReport;
+  analyst_notes: string | null;
+  notes_updated_at: string | null;
+  notes_updated_by_email: string | null;
 }
 
 /** What `POST /api/research/query` returns: the report plus its provenance. */

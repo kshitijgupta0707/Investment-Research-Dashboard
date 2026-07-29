@@ -125,6 +125,7 @@ async def get_current_user(
         id=record["id"],
         auth_id=record["supabase_auth_id"],
         email=record["email"],
+        name=record["name"],
         org_id=record["org_id"],
         role=record["role"],
     )

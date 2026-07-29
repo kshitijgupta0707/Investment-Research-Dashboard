@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { apiFetch } from "@/lib/api/client";
 import type {
   Invite,
@@ -67,9 +69,10 @@ export function getWatchlist(): Promise<WatchlistEntry[]> {
   return authorized<WatchlistEntry[]>("/api/watchlist");
 }
 
-export function getOrganization(): Promise<Organization> {
+/** `cache`d so the layout and a page share one round trip, like `getSession`. */
+export const getOrganization = cache((): Promise<Organization> => {
   return authorized<Organization>("/api/org");
-}
+});
 
 /** Admin-only. The API answers 403 for anyone else. */
 export function getMembers(): Promise<Member[]> {
