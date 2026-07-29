@@ -1,57 +1,62 @@
 "use client";
 
 import { useId } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 
-import { useLiveSeries } from "@/hooks/use-live-series";
-import { CHART, FEATURED, STEP } from "@/lib/market/sample";
-import { areaPath, latestY, linePath, percentChange } from "@/lib/market/series";
+import { PRICE_HISTORY, SERIES_END } from "@/lib/market/history";
+import { CHART, SAMPLE_TICKERS } from "@/lib/market/sample";
+import { areaPath, latestY, linePath } from "@/lib/market/series";
 
 import { Delta, directionColor } from "./delta";
 
-const { width, height, samples, volatility } = CHART;
+const { width, height } = CHART;
+
+/** A fixed y-scale for one symbol, so the line never re-scales under itself. */
+function domainFor(series: number[]): [number, number] {
+  const low = Math.min(...series);
+  const high = Math.max(...series);
+  const padding = (high - low) * 0.12 || 1;
+  return [low - padding, high + padding];
+}
 
 /**
  * The headline chart on the sign-in panel.
  *
- * The line is drawn one sample wider than the viewport and slid left by the
- * animation phase, so new points enter from the right edge rather than the
- * whole series jumping. Ids are scoped with `useId` because gradients and
- * filters share a document-wide namespace.
+ * Selecting a different ticker replays the draw-on reveal rather than morphing
+ * between paths, which reads as a smear. Ids are scoped with `useId` because
+ * gradients and filters share a document-wide namespace.
  */
-export function LiveChart() {
-  const { series, trackRef } = useLiveSeries({
-    samples,
-    start: FEATURED.price,
-    volatility,
-  });
-
+export function LiveChart({ symbol }: { symbol: string }) {
   const scope = useId().replace(/:/g, "");
   const fillId = `fill-${scope}`;
   const glowId = `glow-${scope}`;
-  const clipId = `clip-${scope}`;
+  const reduced = useReducedMotion();
 
-  const change = percentChange(series);
-  const stroke = directionColor(change);
-  const price = series[series.length - 1];
+  const series = PRICE_HISTORY[symbol] ?? [];
+  const ticker = SAMPLE_TICKERS.find((entry) => entry.symbol === symbol);
+  const domain = domainFor(series);
+  const stroke = directionColor(ticker?.changePercent ?? 0);
 
   return (
-    <figure className="overflow-hidden rounded-lg border border-border bg-gradient-to-b from-surface to-background/55">
-      <figcaption className="flex items-baseline gap-3 px-4 pb-2 pt-3">
-        <span className="numeric text-[13px] font-medium tracking-wider">{FEATURED.symbol}</span>
+    <figure className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-gradient-to-b from-surface to-background/55">
+      <figcaption className="flex shrink-0 items-baseline gap-3 px-4 pb-2 pt-3">
+        <span className="numeric text-[13px] font-medium tracking-wider">{symbol}</span>
         <span
-          className="numeric text-[19px] tabular-nums transition-colors duration-500"
+          className="numeric text-[19px] tabular-nums transition-colors duration-300"
           style={{ color: stroke }}
         >
-          {price.toFixed(2)}
+          {ticker?.price.toFixed(2)}
         </span>
-        <Delta value={change} className="text-xs" />
+        <Delta value={ticker?.changePercent ?? 0} className="text-xs" />
         <span className="numeric ml-auto text-[10px] tracking-[0.1em] text-faint">
-          ILLUSTRATIVE
+          6M · TO {SERIES_END}
         </span>
       </figcaption>
 
+      {/* `preserveAspectRatio="none"` lets the viewBox stretch to fill whatever
+          height is left over. */}
       <svg
-        className="block w-full"
+        className="block min-h-0 w-full flex-1"
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="none"
         aria-hidden="true"
@@ -69,9 +74,6 @@ export function LiveChart() {
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          <clipPath id={clipId}>
-            <rect x="0" y="0" width={width} height={height} />
-          </clipPath>
         </defs>
 
         {[0.25, 0.5, 0.75].map((fraction) => (
@@ -86,30 +88,43 @@ export function LiveChart() {
           />
         ))}
 
-        <g clipPath={`url(#${clipId})`}>
-          <g
-            ref={trackRef}
-            style={{ transform: `translateX(calc(var(--slide, 0) * ${-STEP}px))` }}
-          >
-            <path d={areaPath(series, width + STEP, height)} fill={`url(#${fillId})`} />
-            <path
-              d={linePath(series, width + STEP, height)}
-              fill="none"
-              stroke={stroke}
-              strokeWidth={1.8}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              filter={`url(#${glowId})`}
-            />
-            <circle
-              cx={width + STEP}
-              cy={latestY(series, height)}
-              r={3.2}
-              fill={stroke}
-              filter={`url(#${glowId})`}
-            />
-          </g>
-        </g>
+        {/* Keyed on the symbol so switching replays the reveal. */}
+        <motion.path
+          key={`area-${symbol}`}
+          d={areaPath(series, width, height, 6, domain)}
+          fill={`url(#${fillId})`}
+          initial={reduced ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.7, delay: 0.4, ease: "easeOut" }}
+        />
+
+        {/* `pathLength` normalises the dash to 0-1, so no need to measure the
+            path to animate it. */}
+        <motion.path
+          key={`line-${symbol}`}
+          d={linePath(series, width, height, 6, domain)}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={1.8}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          filter={`url(#${glowId})`}
+          initial={reduced ? false : { pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 1.1, ease: [0.33, 1, 0.68, 1] }}
+        />
+
+        <motion.circle
+          key={`dot-${symbol}`}
+          cx={width}
+          cy={latestY(series, height, 6, domain)}
+          r={3.2}
+          fill={stroke}
+          filter={`url(#${glowId})`}
+          initial={reduced ? false : { opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3, delay: 1, ease: "backOut" }}
+        />
       </svg>
     </figure>
   );
