@@ -8,3 +8,12 @@ export type TagsState =
   | { status: "saved"; tags: string[] };
 
 export const idleTagsState: TagsState = { status: "idle" };
+
+export const MAX_NOTES_CHARS = 4000;
+
+export type NotesState =
+  | { status: "idle" }
+  | { status: "error"; message: string }
+  | { status: "saved"; cleared: boolean };
+
+export const idleNotesState: NotesState = { status: "idle" };

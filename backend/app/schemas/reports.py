@@ -13,6 +13,10 @@ from app.schemas.research import MAX_QUERY_CHARS
 MAX_TAGS = 10
 MAX_TAG_CHARS = 32
 
+# Long enough for a considered desk view, short enough that the note stays a
+# note rather than becoming a second report.
+MAX_NOTES_CHARS = 4000
+
 
 def _clean_tags(value: list[str]) -> list[str]:
     """Lowercase, trim, drop blanks, de-duplicate, preserve order.
@@ -78,6 +82,30 @@ class ReportTagsUpdate(BaseModel):
         return _clean_tags(value)
 
 
+class ReportNotesUpdate(BaseModel):
+    """An analyst's own commentary, kept beside the agent's output.
+
+    This never touches `structured_result`. A saved report is the record of what
+    the agent retrieved, and every source tag rendered in the UI rests on that
+    being true -- so a human's words go in their own field, attributed to them,
+    rather than being woven into sections that claim a provider as their source.
+
+    Sending null, or only whitespace, clears the note.
+    """
+
+    notes: str | None = Field(default=None, max_length=MAX_NOTES_CHARS)
+
+    @field_validator("notes")
+    @classmethod
+    def _clean(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        # An empty string and "no note" are the same state; storing both would
+        # give the UI two cases to distinguish for no reason.
+        return stripped or None
+
+
 class ReportSummary(BaseModel):
     """A list row. Deliberately without `structured_result`.
 
@@ -92,10 +120,16 @@ class ReportSummary(BaseModel):
     created_by_email: str
     created_at: datetime
     updated_at: datetime
+    # Whether a note exists, not the note itself -- enough for the list to badge
+    # an annotated report without carrying every note's text.
+    has_notes: bool = False
 
 
 class ReportDetail(ReportSummary):
     structured_result: ResearchReport
+    analyst_notes: str | None = None
+    notes_updated_at: datetime | None = None
+    notes_updated_by_email: str | None = None
 
 
 class ReportPage(BaseModel):

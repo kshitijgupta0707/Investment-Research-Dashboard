@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 ACTION_CREATED = "report.created"
 ACTION_UPDATED = "report.updated"
 ACTION_DELETED = "report.deleted"
+ACTION_NOTES_UPDATED = "report.notes_updated"
 
 MAX_PAGE_SIZE = 100
 
@@ -144,6 +145,42 @@ async def update_report_tags(
         entity_type="research_report",
         entity_id=report.id,
         metadata={"tags_before": list(before["tags"]), "tags_after": report.tags},
+    )
+    return report
+
+
+async def update_report_notes(
+    pool: asyncpg.Pool, user: CurrentUser, report_id: UUID, notes: str | None
+) -> ReportDetail:
+    """Replace a report's analyst note. Creator or admin only.
+
+    Same permission rule as tags and delete, for one reason: a note appears
+    inside the report and is attributed to whoever wrote it, so allowing any
+    member to overwrite a colleague's commentary would make that attribution
+    misleading.
+    """
+    await _load_for_write(pool, user, report_id)
+
+    row = await reports.update_notes(pool, user.org_id, report_id, notes, user.id)
+    if row is None:
+        raise _not_found()
+    report = _detail(row)
+
+    await audit.record(
+        pool,
+        org_id=user.org_id,
+        user_id=user.id,
+        action=ACTION_NOTES_UPDATED,
+        entity_type="research_report",
+        entity_id=report.id,
+        # The note's text is not recorded: the audit log is org-readable, and a
+        # trail that reproduces every draft of a private view is more exposure
+        # than the action needs.
+        metadata={"cleared": notes is None, "length": len(notes or "")},
+    )
+    logger.info(
+        "report notes updated",
+        extra={"context": {"report_id": str(report.id), "cleared": notes is None}},
     )
     return report
 

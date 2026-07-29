@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { ReportView } from "@/components/report/report-view";
+import { AnalystNotes } from "@/components/reports/analyst-notes";
 import { DeleteReport } from "@/components/reports/delete-report";
 import { EditTags } from "@/components/reports/edit-tags";
 import { ReportMeta } from "@/components/reports/report-meta";
@@ -82,6 +83,19 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
 
       <div className="space-y-6">
         <ReportMeta report={report} now={now} />
+
+        {/* Above the report rather than below it: a colleague's read on the
+            findings is what another analyst opens this page for, and burying it
+            under the full output would mean scrolling past everything to reach
+            the one part a person wrote. */}
+        <AnalystNotes
+          reportId={report.id}
+          notes={report.analyst_notes}
+          updatedAt={report.notes_updated_at}
+          updatedByEmail={report.notes_updated_by_email}
+          canEdit={editable}
+        />
+
         <ReportView report={report.structured_result} />
       </div>
     </>

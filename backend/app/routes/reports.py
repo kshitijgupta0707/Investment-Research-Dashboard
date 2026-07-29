@@ -18,6 +18,7 @@ from app.schemas.envelope import Envelope, ok
 from app.schemas.reports import (
     ReportCreate,
     ReportDetail,
+    ReportNotesUpdate,
     ReportPage,
     ReportTagsUpdate,
 )
@@ -67,6 +68,24 @@ async def update_report_tags(
 ) -> Envelope[ReportDetail]:
     """Replace a report's tags. Creator or admin only."""
     report = await reports_service.update_report_tags(db.get_pool(), user, report_id, body.tags)
+    return ok(report)
+
+
+@router.patch("/{report_id}/notes", response_model=Envelope[ReportDetail])
+async def update_report_notes(
+    report_id: UUID,
+    body: ReportNotesUpdate,
+    user: CurrentUser = Depends(get_current_user),
+) -> Envelope[ReportDetail]:
+    """Replace a report's analyst note. Creator or admin only.
+
+    A separate endpoint from the tags PATCH rather than another optional field
+    on it: the two are edited from different places in the UI and a partial
+    update that silently cleared the other would be easy to write by accident.
+    """
+    report = await reports_service.update_report_notes(
+        db.get_pool(), user, report_id, body.notes
+    )
     return ok(report)
 
 

@@ -23,7 +23,21 @@ _SUMMARY_COLUMNS = """
     u.email as created_by_email
 """
 
-_DETAIL_COLUMNS = f"{_SUMMARY_COLUMNS}, r.structured_result"
+# `has_notes` rather than the note itself: the list endpoint can show that a
+# report has been annotated without carrying the text of every note.
+_SUMMARY_COLUMNS_WITH_NOTES = f"""
+    {_SUMMARY_COLUMNS}, (r.analyst_notes is not null) as has_notes
+"""
+
+_DETAIL_COLUMNS = f"""
+    {_SUMMARY_COLUMNS_WITH_NOTES}, r.structured_result,
+    r.analyst_notes, r.notes_updated_at,
+    n.email as notes_updated_by_email
+"""
+
+# Left join: the author is only set once a note exists, and a report without one
+# must still return its row.
+_NOTES_AUTHOR_JOIN = "left join users n on n.id = r.notes_updated_by"
 
 
 async def create(
@@ -45,6 +59,7 @@ async def create(
         select {_DETAIL_COLUMNS}
         from inserted r
         join users u on u.id = r.created_by
+        {_NOTES_AUTHOR_JOIN}
         """,
         org_id,
         created_by,
@@ -60,6 +75,7 @@ async def get(pool: asyncpg.Pool, org_id: UUID, report_id: UUID) -> asyncpg.Reco
         select {_DETAIL_COLUMNS}
         from research_reports r
         join users u on u.id = r.created_by
+        {_NOTES_AUTHOR_JOIN}
         where r.id = $1 and r.org_id = $2
         """,
         report_id,
@@ -103,7 +119,7 @@ async def list_for_org(
 
     rows = await pool.fetch(
         f"""
-        select {_SUMMARY_COLUMNS}
+        select {_SUMMARY_COLUMNS_WITH_NOTES}
         from research_reports r
         join users u on u.id = r.created_by
         where {where}
@@ -132,10 +148,52 @@ async def update_tags(
         select {_DETAIL_COLUMNS}
         from updated r
         join users u on u.id = r.created_by
+        {_NOTES_AUTHOR_JOIN}
         """,
         report_id,
         org_id,
         tags,
+    )
+
+
+async def update_notes(
+    pool: asyncpg.Pool,
+    org_id: UUID,
+    report_id: UUID,
+    notes: str | None,
+    author_id: UUID,
+) -> asyncpg.Record | None:
+    """Replace the analyst note, recording who wrote it and when.
+
+    `structured_result` is untouched. The note is a layer beside the agent's
+    output, never an edit to it -- every source tag in the UI depends on that
+    column being exactly what the model returned.
+
+    Clearing the note clears its attribution too, so a blank report does not
+    keep claiming an author.
+    """
+    return await pool.fetchrow(
+        f"""
+        with updated as (
+            update research_reports
+            -- $3 is cast explicitly: it appears inside CASE branches where
+            -- nothing else pins its type down, and Postgres will not infer one
+            -- from `is null` alone.
+            set analyst_notes = $3::text,
+                notes_updated_at = case when $3::text is null then null else now() end,
+                notes_updated_by = case when $3::text is null then null else $4::uuid end
+            where id = $1 and org_id = $2
+            returning *
+        )
+        select {_DETAIL_COLUMNS}
+        from updated r
+        join users u on u.id = r.created_by
+        {_NOTES_AUTHOR_JOIN}
+        """,
+        report_id,
+        org_id,
+        notes,
+        author_id,
     )
 
 

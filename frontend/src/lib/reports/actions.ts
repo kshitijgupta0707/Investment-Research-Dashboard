@@ -9,7 +9,13 @@ import type { ReportDetail } from "@/lib/api/types";
 import { routes } from "@/lib/routes";
 import { getAccessToken } from "@/lib/supabase/server";
 
-import { MAX_TAGS, MAX_TAG_CHARS, type TagsState } from "./schema";
+import {
+  MAX_NOTES_CHARS,
+  MAX_TAGS,
+  MAX_TAG_CHARS,
+  type NotesState,
+  type TagsState,
+} from "./schema";
 
 /**
  * Replace a report's tags.
@@ -54,6 +60,39 @@ export async function updateTags(_previous: TagsState, formData: FormData): Prom
   revalidatePath(routes.dashboard);
 
   return { status: "saved", tags };
+}
+
+/** Save an analyst's commentary. An empty box clears the note. */
+export async function updateNotes(
+  _previous: NotesState,
+  formData: FormData,
+): Promise<NotesState> {
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { status: "error", message: "Missing report id." };
+
+  const raw = String(formData.get("notes") ?? "").trim();
+
+  if (raw.length > MAX_NOTES_CHARS) {
+    return {
+      status: "error",
+      message: `That note is ${raw.length} characters; the limit is ${MAX_NOTES_CHARS}.`,
+    };
+  }
+
+  try {
+    await apiFetch<ReportDetail>(`/api/reports/${id}/notes`, {
+      token: await getAccessToken(),
+      method: "PATCH",
+      body: { notes: raw || null },
+    });
+  } catch (error) {
+    return { status: "error", message: messageFor(error) };
+  }
+
+  revalidatePath(`${routes.reports}/${id}`);
+  revalidatePath(routes.reports);
+
+  return { status: "saved", cleared: raw.length === 0 };
 }
 
 /**
