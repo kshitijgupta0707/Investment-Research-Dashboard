@@ -3,53 +3,108 @@
 @tailwind utilities;
 
 /*
- * One dark terminal theme, defined once here as HSL channel triplets so every
- * Tailwind utility and every shadcn primitive reads from the same source.
- * Change a value here and the whole product follows.
+ * Two themes, one set of names, so no component writes `dark:` for colour.
  *
- * `--primary` is the single accent: interactive affordances and nothing else.
- * `--up` / `--down` are reserved for market direction, so green in this UI
- * always means "the number rose" and never "this succeeded".
+ * `--primary` is the single accent. `--up` / `--down` are market direction only,
+ * so green never means "success". Values are HSL triplets so Tailwind can apply
+ * opacity to them.
  */
 
 @layer base {
+  /* Light: paper rather than white, so the white cards read as raised. */
   :root {
-    --background: 213 40% 7%;
-    --foreground: 210 35% 93%;
+    --background: 212 30% 95.5%;
+    --foreground: 215 42% 11%;
 
-    --surface: 214 31% 12%;
-    --surface-raised: 213 31% 15%;
+    --surface: 0 0% 100%;
+    --surface-raised: 210 40% 99.5%;
 
-    --card: 214 31% 12%;
-    --card-foreground: 210 35% 93%;
-    --popover: 213 31% 15%;
-    --popover-foreground: 210 35% 93%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 42% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 42% 11%;
 
-    --muted: 214 31% 12%;
-    --muted-foreground: 211 15% 56%;
-    --faint: 211 18% 36%;
+    --muted: 212 26% 93%;
+    --muted-foreground: 214 14% 40%;
+    /* Carries the smallest text in the app, so it has to clear 4.5:1. */
+    --faint: 214 14% 46%;
 
-    --primary: 188 49% 53%;
-    --primary-foreground: 191 71% 9%;
-    --primary-dim: 190 53% 36%;
+    --primary: 190 78% 30%;
+    --primary-foreground: 0 0% 100%;
+    --primary-dim: 190 55% 42%;
 
-    --secondary: 213 31% 15%;
-    --secondary-foreground: 210 35% 93%;
-    --accent: 213 31% 15%;
-    --accent-foreground: 210 35% 93%;
+    --secondary: 212 26% 93%;
+    --secondary-foreground: 215 42% 11%;
+    --accent: 212 28% 91%;
+    --accent-foreground: 215 42% 11%;
 
-    --destructive: 5 70% 66%;
-    --destructive-foreground: 210 35% 93%;
+    --destructive: 4 62% 47%;
+    --destructive-foreground: 0 0% 100%;
 
-    --up: 158 57% 56%;
-    --down: 5 70% 66%;
+    --up: 158 64% 30%;
+    --down: 4 62% 47%;
 
-    --border: 213 28% 19%;
-    --input: 213 28% 19%;
-    --hairline: 213 30% 14%;
-    --ring: 188 49% 53%;
+    --border: 213 20% 82%;
+    --input: 213 20% 82%;
+    --hairline: 213 22% 88%;
+    --ring: 190 78% 30%;
 
     --radius: 0.375rem;
+
+    /* Two layers -- a contact shadow for the edge, an ambient one for lift.
+       Tinted with the foreground hue; pure black reads as dirt. */
+    --shadow-card:
+      0 1px 2px -1px hsl(215 35% 25% / 0.08),
+      0 4px 12px -2px hsl(215 35% 25% / 0.06);
+    --shadow-card-hover:
+      0 2px 4px -1px hsl(215 35% 25% / 0.1),
+      0 10px 24px -4px hsl(215 35% 25% / 0.1);
+
+    color-scheme: light;
+  }
+
+  /* Dark: wide spacing between background / surface / raised, or it reads flat. */
+  .dark {
+    --background: 216 47% 5.5%;
+    --foreground: 205 25% 96%;
+
+    --surface: 215 36% 9.5%;
+    --surface-raised: 214 32% 13.5%;
+
+    --card: 215 36% 9.5%;
+    --card-foreground: 205 25% 96%;
+    --popover: 214 32% 13.5%;
+    --popover-foreground: 205 25% 96%;
+
+    --muted: 215 36% 9.5%;
+    --muted-foreground: 212 17% 64%;
+    --faint: 213 16% 53%;
+
+    --primary: 186 82% 56%;
+    --primary-foreground: 199 84% 7%;
+    --primary-dim: 188 62% 38%;
+
+    --secondary: 214 32% 13.5%;
+    --secondary-foreground: 205 25% 96%;
+    --accent: 214 32% 15%;
+    --accent-foreground: 205 25% 96%;
+
+    --destructive: 4 78% 66%;
+    --destructive-foreground: 205 25% 96%;
+
+    --up: 156 65% 55%;
+    --down: 4 78% 66%;
+
+    --border: 214 27% 17%;
+    --input: 214 27% 17%;
+    --hairline: 215 30% 12%;
+    --ring: 186 82% 56%;
+
+    /* No shadow in dark: elevation comes from `--surface-raised` instead. */
+    --shadow-card: none;
+    --shadow-card-hover: none;
+
+    color-scheme: dark;
   }
 }
 
@@ -68,6 +123,25 @@
     font-family: var(--font-mono), ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
   }
+
+  /* The OS default is a large flat rectangle on a dark page. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--faint));
+    background-clip: content-box;
+  }
 }
 
 @layer utilities {
@@ -83,5 +157,33 @@
   .mask-radial {
     -webkit-mask-image: radial-gradient(ellipse 85% 65% at 28% 22%, #000 20%, transparent 78%);
     mask-image: radial-gradient(ellipse 85% 65% at 28% 22%, #000 20%, transparent 78%);
+  }
+
+  /* Two faint accent pools, so a full-bleed background is not a flat fill. */
+  .bg-aurora {
+    background-image:
+      radial-gradient(
+        ellipse 70% 55% at 12% -8%,
+        hsl(var(--primary) / 0.09),
+        transparent 62%
+      ),
+      radial-gradient(
+        ellipse 60% 50% at 92% 4%,
+        hsl(var(--primary) / 0.055),
+        transparent 58%
+      );
+  }
+
+  /* The wordmark. Static -- an animated gradient reads as a loading state. */
+  .text-gradient-brand {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--foreground)),
+      hsl(var(--foreground)) 38%,
+      hsl(var(--primary))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }

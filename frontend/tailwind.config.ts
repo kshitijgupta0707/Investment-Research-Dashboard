@@ -14,6 +14,11 @@ const config: Config = {
       screens: { "2xl": "1400px" },
     },
     extend: {
+      // Below this the nav bar cannot show four destinations at a readable
+      // size, so the secondary ones move up beside the theme toggle.
+      screens: {
+        xs: "480px",
+      },
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
@@ -64,6 +69,12 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      // Elevation is a theme decision, not a per-component one: the light theme
+      // resolves these to layered shadows and the dark theme to `none`.
+      boxShadow: {
+        card: "var(--shadow-card)",
+        "card-hover": "var(--shadow-card-hover)",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],

@@ -50,7 +50,7 @@ export default async function WatchlistPage() {
       />
 
       <div className="space-y-6">
-        <Card className="bg-surface/40">
+        <Card className="bg-surface">
           <CardContent className="py-4">
             <AddTicker />
           </CardContent>
@@ -63,7 +63,7 @@ export default async function WatchlistPage() {
             hint="Add the companies you follow and each one is a click away from a fresh analysis."
           />
         ) : (
-          <ul className="divide-y divide-hairline rounded-lg border border-border bg-surface/40">
+          <ul className="divide-y divide-hairline rounded-lg border border-border bg-surface">
             {entries.map((entry) => (
               <li key={entry.id} className="flex items-center gap-4 px-4 py-3">
                 <span className="numeric w-16 shrink-0 text-sm font-medium tracking-wider">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Archivo, IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 import "./globals.css";
@@ -34,20 +35,23 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Meridian Research",
-    template: "%s · Meridian Research",
+    default: "FinLens.ai",
+    template: "%s · FinLens.ai",
   },
   description: "AI-assisted, source-attributed equity research for analyst teams.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    // The product is dark-only for now; the class makes that explicit so
-    // shadcn's `dark:` variants resolve rather than depending on system taste.
-    <html lang="en" className="dark">
+    // `suppressHydrationWarning` is required by next-themes: it sets the theme
+    // class on this element before React hydrates, so the server's markup and
+    // the browser's deliberately disagree on exactly one attribute.
+    <html lang="en" suppressHydrationWarning>
       <body className={`${sans.variable} ${display.variable} ${mono.variable} font-sans`}>
-        {children}
-        <Toaster />
+        <ThemeProvider>
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

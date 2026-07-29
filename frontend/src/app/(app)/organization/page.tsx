@@ -56,7 +56,7 @@ export default async function OrganizationPage() {
       />
 
       <div className="space-y-6">
-        <Card className="bg-surface/40">
+        <Card className="bg-surface">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">Members</CardTitle>
           </CardHeader>
@@ -65,7 +65,7 @@ export default async function OrganizationPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-surface/40">
+        <Card className="bg-surface">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Invite codes

@@ -27,7 +27,7 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
   return (
     <div className="space-y-3" aria-hidden="true">
       {Array.from({ length: rows }, (_, index) => (
-        <Card key={index} className="bg-surface/40">
+        <Card key={index} className="bg-surface">
           <CardContent className="py-4">
             <Skeleton className="h-4 w-3/4" />
             <div className="mt-3 flex gap-2">
@@ -66,7 +66,7 @@ export function ReportSkeleton() {
       </div>
 
       {Array.from({ length: 3 }, (_, index) => (
-        <Card key={index} className="bg-surface/40">
+        <Card key={index} className="bg-surface">
           <CardContent className="space-y-3 pt-5">
             <div className="flex items-center justify-between">
               <Skeleton className="h-4 w-40" />
