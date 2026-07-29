@@ -53,7 +53,7 @@ export function SignupForm() {
 
       {creating ? (
         <>
-          <Field id="orgName" label="Firm name" placeholder="Meridian Capital" required />
+          <Field id="orgName" label="Firm name" placeholder="Northwind Capital" required />
           <Callout>
             You&apos;ll be the <strong className="font-semibold text-foreground">admin</strong> —
             you can invite colleagues once you&apos;re in.
