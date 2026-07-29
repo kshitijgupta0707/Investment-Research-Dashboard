@@ -43,15 +43,17 @@ export function QuickActions() {
         <Link
           key={title}
           href={href}
-          className="group flex items-start gap-3 rounded-lg border border-border bg-surface/40 p-4 transition-colors hover:border-primary-dim focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group flex items-start gap-3 rounded-lg border border-border bg-surface p-4 shadow-card transition-all hover:-translate-y-px hover:border-primary/45 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Icon
-            className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+          <span
             aria-hidden="true"
-          />
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-primary/25 bg-primary/[0.08] text-primary transition-colors group-hover:bg-primary/[0.14]"
+          >
+            <Icon className="h-4 w-4" />
+          </span>
           <span>
             <span className="block text-sm font-medium group-hover:text-primary">{title}</span>
-            <span className="mt-0.5 block text-xs text-faint">{detail}</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">{detail}</span>
           </span>
         </Link>
       ))}

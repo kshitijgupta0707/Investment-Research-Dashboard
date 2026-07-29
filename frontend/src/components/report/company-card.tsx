@@ -12,20 +12,24 @@ import type { CompanyCardContent } from "@/lib/api/types";
  */
 export function CompanyCard({ content }: { content: CompanyCardContent }) {
   return (
-    <div className="rounded-lg border border-border bg-surface/60 p-4">
+    <div className="rounded-lg border border-border bg-surface-raised p-4">
       <header className="flex items-baseline gap-2.5">
-        <span className="numeric text-sm font-medium tracking-wider">{content.ticker}</span>
+        <span className="numeric text-[15px] font-semibold tracking-wider text-primary">
+          {content.ticker}
+        </span>
         {content.company_name ? (
-          <span className="truncate text-xs text-faint">{content.company_name}</span>
+          <span className="truncate text-xs text-muted-foreground">{content.company_name}</span>
         ) : null}
       </header>
 
       {content.metrics.length > 0 ? (
-        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
           {content.metrics.map((metric) => (
             <div key={metric.label}>
-              <dt className="text-[11px] leading-tight text-faint">{metric.label}</dt>
-              <dd className="numeric mt-1 text-[15px] tabular-nums">
+              <dt className="text-[10.5px] uppercase leading-tight tracking-wider text-faint">
+                {metric.label}
+              </dt>
+              <dd className="numeric mt-1.5 text-[17px] font-medium tabular-nums">
                 {metric.value ?? <span className="text-faint">—</span>}
               </dd>
             </div>

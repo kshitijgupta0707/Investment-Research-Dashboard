@@ -17,16 +17,19 @@ interface WidgetProps {
 /** The frame every dashboard panel sits in: title, optional link, body. */
 export function Widget({ title, href, linkLabel = "View all", children, className }: WidgetProps) {
   return (
-    <Card className={cn("bg-surface/40", className)}>
+    <Card className={cn("bg-surface", className)}>
       <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-3">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         {href ? (
           <Link
             href={href}
-            className="flex items-center gap-1 rounded-sm text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="group/link inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:border-primary/45 hover:bg-primary/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {linkLabel}
-            <ArrowRight className="h-3 w-3" aria-hidden="true" />
+            <ArrowRight
+              className="h-3 w-3 transition-transform duration-200 group-hover/link:translate-x-0.5"
+              aria-hidden="true"
+            />
           </Link>
         ) : null}
       </CardHeader>

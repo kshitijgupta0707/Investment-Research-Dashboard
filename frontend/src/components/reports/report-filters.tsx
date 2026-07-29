@@ -58,7 +58,7 @@ export function ReportFilters({ activeTag }: { activeTag?: string }) {
           />
         </div>
 
-        <Button type="submit" variant="secondary" size="sm" disabled={pending}>
+        <Button type="submit" size="sm" className="h-9 px-4" disabled={pending}>
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : "Search"}
         </Button>
       </form>
