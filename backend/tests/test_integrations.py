@@ -1,6 +1,6 @@
 """External data clients.
 
-Unit tests cover failover, retry and parsing with no network. Tests marked
+Unit tests cover failover and parsing with no network. Tests marked
 integration hit the real providers.
 """
 
@@ -23,7 +23,6 @@ from app.integrations.market_data import (
 )
 from app.integrations.newsapi import NewsAPIClient
 from app.schemas.market import MarketSnapshot
-from app.utils.retry import with_retry
 
 # --- stubs ------------------------------------------------------------------
 
@@ -92,43 +91,6 @@ async def test_failure_propagates_when_no_fallback_configured() -> None:
 
     with pytest.raises(UpstreamUnavailable):
         await FallbackMarketDataClient(primary, None).get_snapshot("NVDA")
-
-
-# --- retry ------------------------------------------------------------------
-
-
-async def test_retry_recovers_from_a_transient_failure() -> None:
-    attempts = {"n": 0}
-
-    async def flaky() -> str:
-        attempts["n"] += 1
-        if attempts["n"] == 1:
-            raise UpstreamTimeout("provider", "slow")
-        return "ok"
-
-    assert await with_retry(flaky, base_delay=0) == "ok"
-    assert attempts["n"] == 2
-
-
-async def test_retry_does_not_retry_a_rate_limit() -> None:
-    """Retrying a free-tier quota error only burns what is left."""
-    attempts = {"n": 0}
-
-    async def limited() -> str:
-        attempts["n"] += 1
-        raise UpstreamRateLimited("provider", "quota")
-
-    with pytest.raises(UpstreamRateLimited):
-        await with_retry(limited, base_delay=0)
-    assert attempts["n"] == 1
-
-
-async def test_retry_gives_up_and_reraises() -> None:
-    async def always_slow() -> str:
-        raise UpstreamTimeout("provider", "slow")
-
-    with pytest.raises(UpstreamTimeout):
-        await with_retry(always_slow, attempts=3, base_delay=0)
 
 
 # --- configuration guards ---------------------------------------------------

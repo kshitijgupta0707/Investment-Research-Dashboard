@@ -14,11 +14,9 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.utils.context import reset_request_id, set_request_id
+from app.utils.context import REQUEST_ID_HEADER, reset_request_id, set_request_id
 
 logger = logging.getLogger("app.request")
-
-REQUEST_ID_HEADER = "X-Request-ID"
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
@@ -46,9 +44,11 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
         except Exception:
-            # Reported by the 500 handler; logged here with timing and context.
+            # Logged here with timing and context; the 500 handler builds the
+            # body. The id is deliberately left set -- that handler runs
+            # *outside* this middleware, and resetting first would leave the
+            # caller with a 500 carrying no id to quote back to us.
             logger.exception("request failed", extra={"context": context(500)})
-            reset_request_id(token)
             raise
 
         response.headers[REQUEST_ID_HEADER] = request_id

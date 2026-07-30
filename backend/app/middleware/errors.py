@@ -16,6 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.integrations.errors import UpstreamError
 from app.schemas.envelope import fail
+from app.utils.context import REQUEST_ID_HEADER, get_request_id
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,15 @@ def code_for(status_code: int) -> str:
 
 def _envelope(status_code: int, code: str, message: str, details: list | None = None) -> JSONResponse:
     body = fail(code=code, message=message, details=details)
-    return JSONResponse(status_code=status_code, content=jsonable_encoder(body))
+    response = JSONResponse(status_code=status_code, content=jsonable_encoder(body))
+
+    # The 500 handler runs above the logging middleware, so the header it would
+    # otherwise attach never reaches an unhandled error. Setting it here covers
+    # every error response; for the rest it is the same value written twice.
+    request_id = get_request_id()
+    if request_id:
+        response.headers[REQUEST_ID_HEADER] = request_id
+    return response
 
 
 async def handle_http_exception(_: Request, exc: Exception) -> JSONResponse:

@@ -11,6 +11,10 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 
+# Lives here rather than in the logging middleware because the error handlers
+# need it too, and they run outside that middleware.
+REQUEST_ID_HEADER = "X-Request-ID"
+
 _request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 

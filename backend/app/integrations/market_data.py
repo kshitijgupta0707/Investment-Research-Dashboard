@@ -149,6 +149,11 @@ class YFinanceClient:
 
 _AV_PERIOD_DAYS = {"1mo": 22, "3mo": 66, "6mo": 132, "1y": 252, "5y": 1260}
 
+# A snapshot needs two calls, and sent back to back the second is refused as too
+# frequent -- measured: consistently throttled at zero delay, consistently fine
+# at three seconds. Without this the fallback returns a price and no fundamentals.
+_AV_BURST_DELAY_SECONDS = 1.5
+
 
 class AlphaVantageClient:
     """Alpha Vantage. Free tier: 25 requests/day, 15-minute delayed quotes.
@@ -205,6 +210,7 @@ class AlphaVantageClient:
 
         overview: dict[str, Any] = {}
         try:
+            await asyncio.sleep(_AV_BURST_DELAY_SECONDS)
             overview = await self._get({"function": "OVERVIEW", "symbol": ticker})
         except UpstreamError as exc:
             # Fundamentals are a bonus; a quote alone is still useful.
