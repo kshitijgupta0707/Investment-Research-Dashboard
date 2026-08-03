@@ -61,9 +61,16 @@ export const TOOL = {
   marketData: "get_market_data",
   newsSentiment: "get_news_sentiment",
   knowledgeBase: "search_knowledge_base",
+  /** Not a data source — the agent calls this to decline an off-topic question. */
+  outOfScope: "reject_out_of_scope",
 } as const;
 
-export type QueryStatus = "success" | "partial" | "failed";
+/**
+ * `rejected` is not a failure. The agent declined a question outside equity
+ * research, so nothing was retrieved and no report was written — but the
+ * request was answered. Kept separate so a genuine pipeline error stays visible.
+ */
+export type QueryStatus = "success" | "partial" | "failed" | "rejected";
 
 /**
  * One past query, saved or not.

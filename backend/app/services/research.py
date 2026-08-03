@@ -18,10 +18,12 @@ import time
 from uuid import UUID
 
 import asyncpg
+from fastapi import HTTPException, status
 
 from app.agent.executor import ToolContext, execute_plan
 from app.agent.planner import plan_query
 from app.agent.synthesizer import synthesize
+from app.agent.tools import OUT_OF_SCOPE
 from app.models import audit, research_queries
 from app.models.research_queries import QueryStatus
 from app.schemas.auth import CurrentUser
@@ -30,6 +32,11 @@ from app.schemas.research import ResearchQueryResponse
 logger = logging.getLogger(__name__)
 
 AUDIT_ACTION = "research.query"
+
+# Shown when the model declines but supplies no reason of its own.
+OUT_OF_SCOPE_MESSAGE = (
+    "This assistant answers questions about companies, markets and financial concepts."
+)
 
 
 async def _record(
@@ -83,8 +90,29 @@ async def run_research_query(
         plan = await plan_query(query_text)
         tools_selected = plan.tool_names
 
+        rejection = next((c for c in plan.tool_calls if c.name == OUT_OF_SCOPE), None)
+        if rejection is not None:
+            # The model declined. Nothing is retrieved and no report is written,
+            # so this costs the planning call and nothing else. Recorded with its
+            # own status: an off-topic question is not a failure of the pipeline,
+            # and folding it into `failed` would make that column useless.
+            reason = str(rejection.arguments.get("reason") or "").strip()
+            await _record(pool, user, query_text, [OUT_OF_SCOPE], "rejected", elapsed())
+            logger.info(
+                "query declined as out of scope",
+                extra={"context": {"reason": reason, "latency_ms": elapsed()}},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=reason or OUT_OF_SCOPE_MESSAGE,
+            )
+
         execution = await execute_plan(plan, ctx or ToolContext(pool=pool))
         report = await synthesize(plan, execution)
+    except HTTPException:
+        # Already recorded above with its own status. Falling through to the
+        # handler below would write a second row saying the run failed.
+        raise
     except Exception as exc:
         # The run is already lost; a second failure while recording it must not
         # replace the real reason with a database error.

@@ -16,11 +16,13 @@ from app.agent.tools import (
     KNOWLEDGE_BASE,
     MARKET_DATA,
     NEWS_SENTIMENT,
+    OUT_OF_SCOPE,
     TOOL_NAMES,
     TOOL_SCHEMAS,
     KnowledgeBaseInput,
     MarketDataInput,
     NewsSentimentInput,
+    OutOfScopeInput,
     build_tool_schemas,
     parse_tool_input,
 )
@@ -31,8 +33,9 @@ BY_NAME = {schema["name"]: schema for schema in TOOL_SCHEMAS}
 # --- structure --------------------------------------------------------------
 
 
-def test_exactly_three_tools_are_exposed() -> None:
-    assert len(TOOL_SCHEMAS) == 3
+def test_four_tools_are_exposed() -> None:
+    """Three data sources, plus one the model calls to decline a question."""
+    assert len(TOOL_SCHEMAS) == 4
     assert set(BY_NAME) == set(TOOL_NAMES)
 
 
@@ -47,7 +50,12 @@ def test_schema_is_valid_tool_use_format(name: str) -> None:
 
 @pytest.mark.parametrize(
     ("name", "required"),
-    [(MARKET_DATA, ["tickers"]), (NEWS_SENTIMENT, ["tickers"]), (KNOWLEDGE_BASE, ["query"])],
+    [
+        (MARKET_DATA, ["tickers"]),
+        (NEWS_SENTIMENT, ["tickers"]),
+        (KNOWLEDGE_BASE, ["query"]),
+        (OUT_OF_SCOPE, ["reason"]),
+    ],
 )
 def test_required_arguments(name: str, required: list[str]) -> None:
     assert BY_NAME[name]["input_schema"]["required"] == required
@@ -80,6 +88,21 @@ def test_each_description_redirects_to_the_other_tools(name: str, must_point_at:
 def test_market_data_discourages_use_for_general_questions() -> None:
     """'What is a P/E ratio?' must select no tools at all."""
     assert "no company-specific data" in BY_NAME[MARKET_DATA]["description"]
+
+
+def test_refusal_is_biased_towards_answering() -> None:
+    """A wrongly refused research question is worse than a borderline answer.
+
+    The boundary is fuzzy, so the description has to lean one way on purpose.
+    """
+    description = BY_NAME[OUT_OF_SCOPE]["description"]
+    assert "finance-adjacent" in description
+    assert "when in doubt answer instead of declining" in description
+
+
+def test_refusal_is_not_offered_as_an_alternative_to_answering_directly() -> None:
+    """"What is a P/E ratio?" needs no tools -- but it must not be refused either."""
+    assert "should be answered directly, not" in BY_NAME[OUT_OF_SCOPE]["description"]
 
 
 def test_knowledge_base_lists_the_companies_it_covers() -> None:
@@ -136,6 +159,18 @@ def test_parse_tool_input_dispatches_by_name() -> None:
     parsed = parse_tool_input(KNOWLEDGE_BASE, {"query": "capital ratios", "tickers": ["jpm"]})
     assert isinstance(parsed, KnowledgeBaseInput)
     assert parsed.tickers == ["JPM"]
+
+
+def test_refusal_validates_like_any_other_tool() -> None:
+    """It carries no handler, but its arguments still go through the same gate."""
+    parsed = parse_tool_input(OUT_OF_SCOPE, {"reason": "Not an equity research question."})
+    assert isinstance(parsed, OutOfScopeInput)
+    assert parsed.reason == "Not an equity research question."
+
+
+def test_refusal_without_a_reason_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        OutOfScopeInput()
 
 
 def test_unknown_tool_name_is_rejected() -> None:

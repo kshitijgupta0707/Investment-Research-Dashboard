@@ -16,7 +16,7 @@ from google.genai import types
 
 from app.agent import planner
 from app.agent.client import translate_error
-from app.agent.tools import KNOWLEDGE_BASE, MARKET_DATA, NEWS_SENTIMENT
+from app.agent.tools import KNOWLEDGE_BASE, MARKET_DATA, NEWS_SENTIMENT, OUT_OF_SCOPE
 from app.integrations.errors import (
     UpstreamRateLimited,
     UpstreamTimeout,
@@ -153,6 +153,29 @@ async def test_zero_tools_returns_a_direct_answer(respond_with) -> None:
     assert plan.tool_names == []
     assert not plan.used_tools
     assert plan.direct_answer and "earnings per share" in plan.direct_answer
+
+
+async def test_a_refusal_survives_planning(respond_with) -> None:
+    """`reject_out_of_scope` has no handler, so it must not be dropped as unknown.
+
+    The service reads it off the plan and answers 400. If the planner discarded
+    it the query would proceed as though the model had never objected.
+    """
+    respond_with(
+        tool_use(OUT_OF_SCOPE, {"reason": "This assistant answers equity research questions."})
+    )
+
+    plan = await planner.plan_query("Who is the Prime Minister of India?")
+    assert plan.tool_names == [OUT_OF_SCOPE]
+    assert plan.tool_calls[0].arguments["reason"].startswith("This assistant")
+
+
+async def test_a_refusal_missing_its_reason_is_dropped(respond_with) -> None:
+    """Validated like any other tool -- a call we cannot render is not usable."""
+    respond_with(tool_use(OUT_OF_SCOPE, {}))
+
+    plan = await planner.plan_query("Who is the Prime Minister of India?")
+    assert plan.tool_names == []
 
 
 async def test_commentary_alongside_tool_calls_is_not_an_answer(respond_with) -> None:

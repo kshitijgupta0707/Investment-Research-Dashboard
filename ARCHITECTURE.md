@@ -606,15 +606,34 @@ permits unconditional parallelism.
 
 ### 5.3 Tool Inventory
 
-Four tools exist. Three are offered in Turn 1; one is the forced output tool in
-Turn 2.
+Five tools exist. Four are offered in Turn 1; one is the forced output tool in
+Turn 2. Two of the five have no handler at all — they exist so that a decision
+reaches the backend as structured data rather than as prose to be parsed.
 
 | Tool | Turn | Inputs | Output |
 |---|---|---|---|
 | `get_market_data` | 1 | `tickers[]`, `metrics[]?`, `historical?` | Snapshots (price, market cap, P/E, EPS, 52-week range, `data_as_of`) plus optional 3-month daily history |
 | `get_news_sentiment` | 1 | `tickers[]`, `days?` | Articles per ticker with LLM-assigned sentiment |
 | `search_knowledge_base` | 1 | `query`, `tickers[]?` | Ranked filing excerpts with `source_label` and BM25 score |
+| `reject_out_of_scope` | 1 | `reason` | **No execution.** The service reads it off the plan and answers 400 |
 | `emit_report` | 2 | `summary`, `sections[]` | The finished report — **forced, exactly once** |
+
+`reject_out_of_scope` is the scope guardrail. Without it the planner answers
+"who is the Prime Minister of India?" directly, because that question genuinely
+needs no company data and nothing in the prompt said the assistant is limited to
+finance. Making the refusal a tool keeps the boundary a model decision, reached
+through the same mechanism as every other decision, rather than a keyword filter
+applied to the query text.
+
+It short-circuits before execution, so a declined question costs one planning
+call and nothing else — no tool calls, no synthesis, no quota. It is recorded in
+`research_queries` with status `rejected`, which is deliberately distinct from
+`failed`: an off-topic question is not a pipeline error, and merging the two
+would make that column unreadable as evidence of per-query tool selection.
+
+Its description is biased towards answering, because the boundary is fuzzy and a
+wrongly refused research question is a worse outcome than a borderline answer —
+*"when in doubt answer instead of declining."*
 
 The model is told which seven tickers the corpus covers (`NVDA, AMD, INTC, TSLA,
 JPM, GS, MS`) so it does not query the knowledge base for a company it holds
@@ -628,7 +647,7 @@ description explicitly redirects qualitative questions to the knowledge base.
 | **Parallel execution** | `asyncio.gather` over all selected calls; a second `gather` fans out per ticker within a tool |
 | **Sequential execution** | Only where genuinely dependent: news must return before sentiment can classify it |
 | **Conditional execution** | Price history is fetched only when `historical=true` *and* at least one snapshot succeeded |
-| **Timeouts** | Three tiers — upstream call 10s, whole tool 25s, LLM 60s |
+| **Timeouts** | Three tiers — upstream call 10s, whole tool 25s, LLM 60s. The gap between the first two is not arbitrary: one `yf.Ticker(t).info` is three HTTP requests to Yahoo, so a three-ticker comparison is nine, and twelve with history. Measured against `yfinance==1.5.2` — see [market-data-observed.md](docs/market-data-observed.md) |
 | **Fallbacks** | `FallbackMarketDataClient` tries yfinance, then Alpha Vantage. `SymbolNotFound` is deliberately *not* retried against the fallback — the ticker is wrong, and a second lookup would burn free-tier quota to say the same thing |
 | **Failure isolation** | `_run_one` never raises; failures return as `ToolResult(ok=False, error=…)` |
 | **Partial results** | A single failed ticker in a three-way comparison does not lose the other two |
@@ -746,6 +765,146 @@ when data is thin, stale, conflicting, or the relevant tool failed.
 
 ---
 
+### 5.8 Worked Example — Three Companies, All Three Tools
+
+The sections above describe each stage in isolation. This traces one concrete
+query end to end with every call counted, so the cost and the failure surface of
+the worst realistic case are both visible.
+
+**Query**
+
+> *Analyze NVIDIA's Q3 earnings, compare revenue growth with AMD and Intel,
+> summarize competitive threats and news sentiment, give a risk assessment.*
+
+Observed planner output for this exact query — all three tools, three tickers
+passed to each in a single call, captured in
+[agent-turn1-observed.md](docs/agent-turn1-observed.md):
+
+```json
+[
+  { "name": "get_market_data",       "args": { "tickers": ["NVDA","AMD","INTC"] } },
+  { "name": "get_news_sentiment",    "args": { "tickers": ["NVDA","AMD","INTC"], "days": 30 } },
+  { "name": "search_knowledge_base", "args": { "tickers": ["NVDA","AMD","INTC"],
+      "query": "Q3 earnings financial results revenue growth Data Center competitive threats risk factors" } }
+]
+```
+
+#### Execution trace
+
+```mermaid
+flowchart TD
+    A["POST /api/research/query<br/>1 JWT verify local, 1 DB read for org_id + role"] --> B
+
+    B["TURN 1 — planner<br/>LLM call 1<br/>~1,070 prompt tokens + question<br/>3-4s"] --> C{"tool_calls<br/>returned"}
+
+    C -->|"0 calls"| Z["direct_answer wrapped locally<br/>no Turn 2 — total 1 LLM call"]
+    C -->|"3 calls"| D["asyncio.gather — all three tools start together<br/>per-tool ceiling 25s"]
+
+    D --> E["get_market_data<br/>3 tickers in parallel<br/>3 HTTP per ticker = 9<br/>+3 if historical"]
+    D --> F["get_news_sentiment<br/>3 tickers in parallel<br/>1 HTTP per ticker = 3<br/>→ 30 articles"]
+    D --> G["search_knowledge_base<br/>0 external calls<br/>1 DB read on first use, then cached"]
+
+    F --> H["sentiment — 3 tickers in parallel<br/>LLM calls 2, 3, 4<br/>10 articles batched per call<br/>BATCH_SIZE 25"]
+
+    E --> I["ExecutionResult<br/>partial / all_failed computed from<br/>what actually returned"]
+    G --> I
+    H --> I
+
+    I --> J["TURN 2 — synthesis<br/>LLM call 5<br/>forced emit_report, results truncated at 24,000 chars per tool"]
+    J --> K{"Pydantic<br/>validates"}
+    K -->|"pass"| L["backend sets partial, failed_tools, generated_at"]
+    K -->|"fail"| M["retry once — model shown its own<br/>rejected call plus the validation errors<br/>LLM call 6"]
+    M --> N{"validates"}
+    N -->|"pass"| L
+    N -->|"fail"| O["UpstreamUnavailable → HTTP 502<br/>no partial report is ever returned"]
+
+    L --> P["INSERT research_queries + audit_logs<br/>envelope → Next.js → ReportView"]
+```
+
+**Figure 5: Quantified trace of a three-company, three-tool query.**
+
+#### Call ledger
+
+| Stage | LLM calls | External HTTP | Database |
+|---|---|---|---|
+| Auth + tenant resolution | — | — | 1 read (`users`) |
+| Turn 1 planning | **1** | — | — |
+| `get_market_data` | — | **9** (3 per ticker; 12 with history) | — |
+| `get_news_sentiment` | — | **3** (1 per ticker) | — |
+| Sentiment classification | **3** (1 per ticker) | — | — |
+| `search_knowledge_base` | — | **0** | 1 read, first request only |
+| Turn 2 synthesis | **1** (2 if retried) | — | — |
+| Persistence | — | — | 2 writes |
+| **Total** | **5** (6 with retry) | **12–15** | 2–4 |
+
+Sentiment is the term that scales with ticker count: one call per ticker, not
+per article. Thirty articles cost three calls, not thirty. Turn 1 and Turn 2
+are fixed at one each regardless of how many companies the question names.
+
+`yf.Ticker(t).info` is three HTTP requests rather than one — measured, see
+[market-data-observed.md](docs/market-data-observed.md).
+
+#### Failure and retry matrix
+
+Every row is a real branch in the code, not a hypothetical.
+
+| Failure | Retried? | Outcome | Status |
+|---|---|---|---|
+| Turn 1 returns an unknown tool name | no | that call is dropped, others proceed | `success` |
+| Turn 1 returns malformed arguments | no | that call is dropped, others proceed | `success` |
+| Turn 1 rate limited or unreachable | **no** | request aborts before any tool runs | **429 / 502 / 504** |
+| One ticker fails inside market data | no | listed in `unavailable_tickers`, other two return | `success` |
+| yfinance fails wholesale | **yes — provider failover** | Alpha Vantage attempted if configured | `success` |
+| Ticker does not exist (`SymbolNotFound`) | **deliberately not** | failover would burn quota to repeat the answer | `success` |
+| Every ticker in one tool fails | no | that tool reports `ok=False` | `partial` |
+| A tool exceeds its 25s ceiling | no | `ok=False`, reason `timed out after 25.0s` | `partial` |
+| A tool raises something unanticipated | no | caught by a deliberately broad `except`, isolated to that tool | `partial` |
+| Sentiment classification fails | no | **articles still returned, unlabelled** — news tool stays `ok=True` | `success` |
+| Knowledge base unreachable | no | `ok=False`, other tools unaffected | `partial` |
+| **All three tools fail** | no | Turn 2 still runs and writes the report around the gaps | `partial` |
+| Turn 2 output fails validation | **yes — once** | model is shown its rejected call and the errors | `success` if the retry passes |
+| Turn 2 fails validation twice | no | **502** — a non-conforming report is never returned | `failed` |
+| Turn 2 rate limited or unreachable | no | 429 / 502 / 504 | `failed` |
+
+Two properties follow from the table:
+
+- **A tool failure never fails the request.** Only the planner or the
+  synthesiser can, because both are load-bearing — one decides what to fetch,
+  the other produces the artefact.
+- **`partial` is set from `ExecutionResult`, never from the model.** A model
+  claiming a clean run while a tool timed out is overridden; the test
+  `test_failed_tools_come_from_execution_not_the_model` asserts exactly this.
+
+Every path above, including the failure paths, writes a `research_queries` row —
+so `tools_selected` records what the agent chose even for runs that died.
+
+#### Timeout budget
+
+Three nested tiers, so a slow provider cannot hold the request open indefinitely:
+
+| Tier | Value | Applies to |
+|---|---|---|
+| Upstream call | 10s | one HTTP request to a provider |
+| Whole tool | 25s | a tool including its per-ticker fan-out |
+| LLM call | 60s | any Gemini request |
+
+Worst case for this query is roughly `Turn 1 (60s) + tools (25s) + Turn 2
+(60s × 2 attempts)`. In practice a clean run is about 40 seconds, of which Turn 1
+is 3–4s and the tool phase costs the slowest single tool rather than the sum of
+the three.
+
+#### Known edge
+
+`_record` is wrapped in `try/except` on the failure path so a database error
+cannot mask the real cause of a failed run. It is **not** wrapped on the success
+path: if the history insert fails after a report was successfully generated, the
+request returns 500 and the report is lost. The trade is deliberate for a
+graded build — a silently unrecorded query would undermine `tools_selected` as
+evidence — but a production system would return the report and reconcile the
+history write asynchronously.
+
+---
+
 ## 6. Multi-Tenant Data Flow
 
 Isolation is enforced at the application layer. Row-Level Security exists and
@@ -785,7 +944,7 @@ flowchart TD
     SQL -.->|"privileged connection"| PG
 ```
 
-**Figure 5 — Multi-tenant request path.** Enforcement occurs in the dependency
+**Figure 6 — Multi-tenant request path.** Enforcement occurs in the dependency
 layer and the SQL `WHERE` clause. RLS is a second expression of the same rules.
 
 ### 6.1 Why Organisation A Cannot Reach Organisation B

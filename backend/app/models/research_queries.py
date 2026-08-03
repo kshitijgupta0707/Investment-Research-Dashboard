@@ -17,7 +17,7 @@ from uuid import UUID
 
 import asyncpg
 
-QueryStatus = Literal["success", "partial", "failed"]
+QueryStatus = Literal["success", "partial", "failed", "rejected"]
 
 
 async def record(

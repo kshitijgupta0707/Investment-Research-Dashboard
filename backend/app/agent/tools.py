@@ -22,7 +22,13 @@ MARKET_DATA = "get_market_data"
 NEWS_SENTIMENT = "get_news_sentiment"
 KNOWLEDGE_BASE = "search_knowledge_base"
 
-TOOL_NAMES = (MARKET_DATA, NEWS_SENTIMENT, KNOWLEDGE_BASE)
+# Not a data source. Nothing executes it -- the service reads it off the plan and
+# answers 400 before any tool runs. It is a tool so that declining stays a model
+# decision made through the same mechanism as every other decision, rather than a
+# keyword filter bolted onto the query text.
+OUT_OF_SCOPE = "reject_out_of_scope"
+
+TOOL_NAMES = (MARKET_DATA, NEWS_SENTIMENT, KNOWLEDGE_BASE, OUT_OF_SCOPE)
 
 # Companies the seeded filing corpus covers. The model is told this explicitly
 # so it does not call the knowledge base for a company we hold nothing on.
@@ -55,7 +61,8 @@ class _TickerInput(BaseModel):
     def clean_tickers(cls, value: list[str] | None) -> list[str] | None:
         return _normalise_tickers(value)
 
-
+# for each tool, the model is prompted with a schema of the arguments it should produce.
+#  The model is not bound by that schema, so the agent validates the arguments before anything reaches an external provider.
 class MarketDataInput(_TickerInput):
     tickers: list[str]
     metrics: list[str] | None = None
@@ -72,13 +79,20 @@ class KnowledgeBaseInput(_TickerInput):
     tickers: list[str] | None = None
 
 
+class OutOfScopeInput(BaseModel):
+    """The model's own wording for why it declined. Shown to the analyst."""
+
+    reason: str
+
+
 TOOL_INPUTS: dict[str, type[BaseModel]] = {
     MARKET_DATA: MarketDataInput,
     NEWS_SENTIMENT: NewsSentimentInput,
     KNOWLEDGE_BASE: KnowledgeBaseInput,
+    OUT_OF_SCOPE: OutOfScopeInput,
 }
 
-
+# Checks that the model's tool call arguments are valid before anything reaches an external provider.
 def parse_tool_input(name: str, raw: dict[str, Any]) -> BaseModel:
     """Validate the arguments the model produced for a tool call.
 
@@ -92,7 +106,9 @@ def parse_tool_input(name: str, raw: dict[str, Any]) -> BaseModel:
 
 # --- schemas ----------------------------------------------------------------
 
-
+# It is defining the tools what it is for and what it is not for. 
+# The model uses this to decide which tools to call
+# LLM response back after analyzing it and tells which tools to call and with what arguments.
 def build_tool_schemas(kb_tickers: Sequence[str] = KB_TICKERS) -> list[dict[str, Any]]:
     """Tool definitions as plain JSON Schema.
 
@@ -223,12 +239,45 @@ def build_tool_schemas(kb_tickers: Sequence[str] = KB_TICKERS) -> list[dict[str,
                 "required": ["query"],
             },
         },
+        {
+            "name": OUT_OF_SCOPE,
+            "description": (
+                "Decline a question this assistant does not cover. Nothing is retrieved and "
+                "no report is produced; the analyst is shown your reason and can rephrase.\n\n"
+                "Use this only when the question is plainly unrelated to companies, markets, "
+                "investing or financial concepts - general knowledge, current affairs, "
+                "politics, coding help, personal advice, or chat.\n\n"
+                "Do NOT use this for anything finance-adjacent, however loosely: economics, "
+                "regulation, accounting, a company you do not recognise, or a term you are "
+                "unsure of. Wrongly refusing a legitimate research question is far worse than "
+                "answering a borderline one, so when in doubt answer instead of declining.\n\n"
+                f"Do NOT use this simply because no data tool fits. A question about what a "
+                f"financial term means needs no tools and should be answered directly, not "
+                f"refused; only reach for this when the subject itself is off-topic."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "reason": {
+                        "type": "string",
+                        "description": (
+                            "One sentence the analyst will see, stating what this assistant "
+                            "covers. Address them directly and do not apologise, e.g. 'This "
+                            "assistant answers questions about companies, markets and "
+                            "financial concepts.'"
+                        ),
+                    },
+                },
+                "required": ["reason"],
+            },
+        },
     ]
 
 
 TOOL_SCHEMAS: list[dict[str, Any]] = build_tool_schemas()
 
-
+# It is converting the JSON Schema definitions of the tools into how gemini wants it.
+# It is dependent on the model you are using.
 def to_function_declarations(
     schemas: Sequence[dict[str, Any]],
 ) -> list[types.FunctionDeclaration]:
@@ -248,6 +297,8 @@ def to_function_declarations(
     ]
 
 
+
+#it is consumed by the planner to tell which tools to call and with what arguments.
 def as_tool(schemas: Sequence[dict[str, Any]]) -> types.Tool:
     """Gemini takes one `Tool` carrying many declarations, not many tools."""
     return types.Tool(function_declarations=to_function_declarations(schemas))

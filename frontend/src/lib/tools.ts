@@ -19,6 +19,10 @@ const META: Record<string, ToolMeta> = {
   [TOOL.marketData]: { label: "Market", description: "Prices, valuation and history" },
   [TOOL.newsSentiment]: { label: "News", description: "Recent coverage, sentiment-classified" },
   [TOOL.knowledgeBase]: { label: "Filings", description: "Filing and earnings excerpts" },
+  [TOOL.outOfScope]: {
+    label: "Declined",
+    description: "Not a question about companies, markets or financial concepts",
+  },
 };
 
 export function toolMeta(name: string): ToolMeta {

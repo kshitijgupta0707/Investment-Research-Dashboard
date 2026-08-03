@@ -5,6 +5,8 @@ const STATUS: Record<QueryStatus, { color: string; label: string }> = {
   success: { color: "bg-up", label: "All sources answered" },
   partial: { color: "bg-primary", label: "Some sources failed — partial result" },
   failed: { color: "bg-down", label: "The query failed" },
+  // Neutral, not red: the agent declined rather than broke.
+  rejected: { color: "bg-faint", label: "Outside this assistant's scope" },
 };
 
 /**
