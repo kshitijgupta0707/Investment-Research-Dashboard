@@ -14,14 +14,17 @@ import pytest
 from google.genai import errors as genai_errors
 from google.genai import types
 
+from app.agent import client as agent_client
 from app.agent import planner
 from app.agent.client import translate_error
 from app.agent.tools import KNOWLEDGE_BASE, MARKET_DATA, NEWS_SENTIMENT, OUT_OF_SCOPE
 from app.integrations.errors import (
+    UpstreamError,
     UpstreamRateLimited,
     UpstreamTimeout,
     UpstreamUnavailable,
 )
+from app.utils.config import get_settings
 
 # --- stubs ------------------------------------------------------------------
 
@@ -61,7 +64,11 @@ def _stub_client(monkeypatch: pytest.MonkeyPatch, generate_content: Any) -> None
     """Patch out the whole `client.aio.models.generate_content` chain."""
     models = type("Models", (), {"generate_content": staticmethod(generate_content)})()
     aio = type("Aio", (), {"models": models})()
-    monkeypatch.setattr(planner, "get_client", lambda: type("Client", (), {"aio": aio})())
+    # Patched on `agent.client`, not on the planner: every model call now goes
+    # through `client.generate`, which resolves `get_client` in its own module.
+    monkeypatch.setattr(
+        agent_client, "get_client", lambda: type("Client", (), {"aio": aio})()
+    )
 
 
 @pytest.fixture
@@ -279,6 +286,85 @@ async def test_planner_raises_our_error_not_the_sdks(fail_with) -> None:
 
     with pytest.raises(UpstreamRateLimited):
         await planner.plan_query("...")
+
+
+# --- model fallback ---------------------------------------------------------
+#
+# Free-tier quota is granted per model, so a second model has its own allowance
+# when the first is exhausted. Exercised through the planner because it is the
+# thinnest caller, but the behaviour lives in `client.generate` and applies to
+# sentiment and synthesis identically.
+
+
+async def test_a_rate_limit_falls_back_to_the_second_model(monkeypatch) -> None:
+    attempted: list[str] = []
+
+    async def fake_generate(**kwargs: Any) -> types.GenerateContentResponse:
+        attempted.append(kwargs["model"])
+        if len(attempted) == 1:
+            raise status_error(429)
+        return a_response(tool_use(NEWS_SENTIMENT, {"tickers": ["TSLA"]}))
+
+    _stub_client(monkeypatch, fake_generate)
+    settings = get_settings()
+
+    plan = await planner.plan_query("news on Tesla")
+
+    assert plan.tool_names == [NEWS_SENTIMENT], "the fallback's answer must be used"
+    assert attempted == [settings.gemini_model, settings.gemini_fallback_model]
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [httpx.TimeoutException("slow"), status_error(401), status_error(500)],
+    ids=["timeout", "bad key", "server error"],
+)
+async def test_only_a_rate_limit_triggers_the_fallback(monkeypatch, exc: Exception) -> None:
+    """A second model would fail these identically, so retrying only adds latency."""
+    attempted: list[str] = []
+
+    async def fake_generate(**kwargs: Any) -> types.GenerateContentResponse:
+        attempted.append(kwargs["model"])
+        raise exc
+
+    _stub_client(monkeypatch, fake_generate)
+
+    with pytest.raises(UpstreamError):
+        await planner.plan_query("...")
+
+    assert len(attempted) == 1
+
+
+async def test_both_models_rate_limited_raises(monkeypatch) -> None:
+    """The caller still sees a 429, not a generic outage."""
+    attempted: list[str] = []
+
+    async def fake_generate(**kwargs: Any) -> types.GenerateContentResponse:
+        attempted.append(kwargs["model"])
+        raise status_error(429)
+
+    _stub_client(monkeypatch, fake_generate)
+
+    with pytest.raises(UpstreamRateLimited):
+        await planner.plan_query("...")
+
+    assert len(attempted) == 2
+
+
+async def test_no_fallback_configured_means_one_attempt(monkeypatch) -> None:
+    attempted: list[str] = []
+
+    async def fake_generate(**kwargs: Any) -> types.GenerateContentResponse:
+        attempted.append(kwargs["model"])
+        raise status_error(429)
+
+    _stub_client(monkeypatch, fake_generate)
+    monkeypatch.setattr(get_settings(), "gemini_fallback_model", "")
+
+    with pytest.raises(UpstreamRateLimited):
+        await planner.plan_query("...")
+
+    assert len(attempted) == 1
 
 
 # --- the real thing ---------------------------------------------------------

@@ -133,9 +133,12 @@ async def run_research_query(
         )
         raise
 
-    status: QueryStatus = "partial" if report.partial else "success"
+    # Named `query_status`, not `status`: assigning `status` anywhere in this
+    # function would make it local throughout, and the rejection branch above
+    # would raise UnboundLocalError instead of a 400.
+    query_status: QueryStatus = "partial" if report.partial else "success"
     latency_ms = elapsed()
-    query_id = await _record(pool, user, query_text, tools_selected, status, latency_ms)
+    query_id = await _record(pool, user, query_text, tools_selected, query_status, latency_ms)
 
     logger.info(
         "research query completed",
@@ -143,7 +146,7 @@ async def run_research_query(
             "context": {
                 "query_id": str(query_id),
                 "tools_selected": tools_selected,
-                "status": status,
+                "status": query_status,
                 "failed_tools": report.failed_tools,
                 "sections": len(report.sections),
                 "total_latency_ms": latency_ms,
@@ -155,7 +158,7 @@ async def run_research_query(
         query_id=query_id,
         query_text=query_text,
         tools_selected=tools_selected,
-        status=status,
+        status=query_status,
         latency_ms=latency_ms,
         report=report,
     )

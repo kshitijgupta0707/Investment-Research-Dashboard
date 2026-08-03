@@ -11,8 +11,11 @@ mapping below branches on.
 
 from __future__ import annotations
 
-import httpx
+import logging
 from functools import lru_cache
+from typing import Any
+
+import httpx
 
 from google import genai
 from google.genai import errors as genai_errors
@@ -25,6 +28,8 @@ from app.integrations.errors import (
     UpstreamUnavailable,
 )
 from app.utils.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 PROVIDER = "gemini"
 
@@ -54,6 +59,13 @@ def translate_error(exc: Exception) -> UpstreamError:
     Ordered most specific first. `ClientError` and `ServerError` both subclass
     `APIError`, so the broad branch has to come last or it swallows them.
     """
+    # Idempotent: `generate` below translates before deciding whether to fall
+    # back, and its callers translate again. Without this an already-classified
+    # rate limit would fall through to the catch-all and be reported as a
+    # generic outage, losing the 429 the API actually sent.
+    if isinstance(exc, UpstreamError):
+        return exc
+
     if isinstance(exc, (httpx.TimeoutException, TimeoutError)):
         return UpstreamTimeout(PROVIDER, "no response within the configured budget")
 
@@ -77,6 +89,75 @@ def translate_error(exc: Exception) -> UpstreamError:
         return UpstreamUnavailable(PROVIDER, "could not reach the API")
 
     return UpstreamUnavailable(PROVIDER, str(exc) or exc.__class__.__name__)
+
+
+# --- making calls -----------------------------------------------------------
+
+
+async def generate(
+    *, contents: Any, config: types.GenerateContentConfig, purpose: str
+) -> types.GenerateContentResponse:
+    """One model call, retried on a second model when the first is rate limited.
+
+    Free-tier quota is granted per model -- the 429 names
+    `GenerateRequestsPerMinutePerProjectPerModel` -- so the fallback still has
+    its own allowance when the primary has none. Same shape as
+    `FallbackMarketDataClient`: try the preferred provider, drop to the
+    documented alternative on a failure a second attempt could survive.
+
+    **Only a rate limit triggers it.** A timeout, a rejected key or a malformed
+    request would fail identically on the second model, so retrying would double
+    the latency to reach the same error.
+
+    `purpose` names the calling stage -- "planning", "sentiment", "synthesis" --
+    so a log search can tell which one degraded.
+    """
+    settings = get_settings()
+    client = get_client()
+
+    models = [settings.gemini_model]
+    if settings.gemini_fallback_model:
+        models.append(settings.gemini_fallback_model)
+
+    for index, model in enumerate(models):
+        last_attempt = index == len(models) - 1
+
+        try:
+            response = await client.aio.models.generate_content(
+                model=model, contents=contents, config=config
+            )
+        except Exception as exc:
+            error = translate_error(exc)
+            logger.warning(
+                "gemini call failed",
+                extra={
+                    "context": {
+                        "purpose": purpose,
+                        "model": model,
+                        "is_fallback": index > 0,
+                        "error": str(error),
+                    }
+                },
+            )
+            if last_attempt or not isinstance(error, UpstreamRateLimited):
+                raise error from exc
+            continue
+
+        if index > 0:
+            logger.info(
+                "served by the fallback model",
+                extra={
+                    "context": {
+                        "purpose": purpose,
+                        "model": response.model_version or model,
+                        "primary_model": settings.gemini_model,
+                    }
+                },
+            )
+        return response
+
+    # Unreachable: the loop either returns or raises on its last attempt.
+    raise UpstreamUnavailable(PROVIDER, "no model was attempted")
 
 
 # --- reading responses ------------------------------------------------------

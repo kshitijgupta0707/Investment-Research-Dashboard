@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 from google.genai import types
 
+from app.agent import client as agent_client
 from app.agent import synthesizer
 from app.integrations.errors import UpstreamRateLimited, UpstreamTimeout, UpstreamUnavailable
 from app.schemas.agent import PlannedToolCall, QueryPlan
@@ -76,7 +77,11 @@ class Recorder:
 
 def _stub_client(monkeypatch: pytest.MonkeyPatch, models: Any) -> None:
     aio = type("Aio", (), {"models": models})()
-    monkeypatch.setattr(synthesizer, "get_client", lambda: type("Client", (), {"aio": aio})())
+    # Patched on `agent.client`: model calls go through `client.generate`, which
+    # resolves `get_client` in its own module namespace.
+    monkeypatch.setattr(
+        agent_client, "get_client", lambda: type("Client", (), {"aio": aio})()
+    )
 
 
 @pytest.fixture

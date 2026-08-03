@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.6-flash"
 
+    # Retried against on a rate limit. Free-tier quota is granted per model --
+    # the 429 names `GenerateRequestsPerMinutePerProjectPerModel` -- so a second
+    # model has its own allowance. A six-company query needs eight calls against
+    # a five-per-minute ceiling, and without this the whole report is lost to a
+    # limit that clears in seconds. Blank disables the fallback.
+    gemini_fallback_model: str = "gemini-2.5-flash"
+
     alpha_vantage_api_key: str = ""
     newsapi_api_key: str = ""
 

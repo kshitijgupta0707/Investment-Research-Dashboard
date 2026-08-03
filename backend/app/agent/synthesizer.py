@@ -25,13 +25,12 @@ from typing import Any
 from google.genai import types
 from pydantic import ValidationError
 
-from app.agent.client import PROVIDER, get_client, translate_error
+from app.agent.client import PROVIDER, generate
 from app.integrations.errors import UpstreamUnavailable
 from app.agent.tools import as_tool
 from app.schemas.agent import QueryPlan
 from app.schemas.execution import ExecutionResult, ToolResult
 from app.schemas.report import ResearchReport, SynthesisOutput
-from app.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -362,7 +361,6 @@ async def synthesize(plan: QueryPlan, execution: ExecutionResult) -> ResearchRep
     if not plan.tool_calls:
         return _direct_report(plan, generated_at)
 
-    settings = get_settings()
     started = time.perf_counter()
     contents = _build_contents(plan, execution)
     last_error = ""
@@ -383,14 +381,11 @@ async def synthesize(plan: QueryPlan, execution: ExecutionResult) -> ResearchRep
     )
 
     for attempt in (1, 2):
-        try:
-            response = await get_client().aio.models.generate_content(
-                model=settings.gemini_model,
-                contents=contents,
-                config=config,
-            )
-        except Exception as exc:
-            raise translate_error(exc) from exc
+        # The model fallback lives inside this one call, not around the loop:
+        # the loop retries *malformed output*, which a different model would be
+        # just as likely to produce. Wrapping the loop instead would let one
+        # validation failure spend four generations.
+        response = await generate(contents=contents, config=config, purpose="synthesis")
 
         raw = _extract_output(response)
         if raw is not None:

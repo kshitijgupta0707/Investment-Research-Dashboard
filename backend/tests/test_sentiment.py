@@ -14,6 +14,7 @@ import httpx
 import pytest
 from google.genai import errors as genai_errors
 
+from app.agent import client as agent_client
 from app.agent import sentiment as sentiment_module
 from app.agent.sentiment import BATCH_SIZE, _ArticleSentiment, _SentimentBatch, classify_articles
 from app.schemas.news import Article
@@ -66,7 +67,7 @@ def respond_with(monkeypatch: pytest.MonkeyPatch):
         models = type("Models", (), {"generate_content": staticmethod(fake_generate)})()
         aio = type("Aio", (), {"models": models})()
         monkeypatch.setattr(
-            sentiment_module, "get_client", lambda: type("Client", (), {"aio": aio})()
+            agent_client, "get_client", lambda: type("Client", (), {"aio": aio})()
         )
         return calls
 

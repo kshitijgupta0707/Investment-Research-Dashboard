@@ -21,9 +21,8 @@ import logging
 from google.genai import types
 from pydantic import BaseModel
 
-from app.agent.client import get_client, translate_error
+from app.agent.client import generate, translate_error
 from app.schemas.news import Article, Sentiment
-from app.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +74,7 @@ async def _classify_batch(articles: list[Article], ticker: str) -> dict[int, Sen
     with no branching, which `response_schema` expresses directly from the
     Pydantic model.
     """
-    response = await get_client().aio.models.generate_content(
-        model=get_settings().gemini_model,
+    response = await generate(
         contents=_prompt_for(articles, ticker),
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
@@ -87,6 +85,7 @@ async def _classify_batch(articles: list[Article], ticker: str) -> dict[int, Sen
             # with a bare 400, so thinking depth is left to the model. Cost is
             # bounded by batching instead -- one request per 25 articles.
         ),
+        purpose="sentiment",
     )
 
     parsed = response.parsed

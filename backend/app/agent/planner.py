@@ -19,9 +19,8 @@ from google.genai import types
 from pydantic import ValidationError
 
 from app.agent.client import finish_reason as _finish_reason
-from app.agent.client import get_client
+from app.agent.client import generate
 from app.agent.client import response_parts as _parts
-from app.agent.client import translate_error
 from app.agent.tools import TOOL_NAMES, TOOL_SCHEMAS, as_tool, parse_tool_input
 from app.schemas.agent import PlannedToolCall, QueryPlan
 from app.utils.config import get_settings
@@ -50,7 +49,12 @@ company-specific data -- explaining what a financial ratio means, for instance \
 TSLA, JPMorgan is JPM.
 """
 
+# It first check whether the tool name is valid, 
+# then it checks whether the arguments are valid for that tool. 
+# If either of these checks fails, it logs a warning and returns None, indicating that the call should be dropped. 
+# Otherwise,it returns a PlannedToolCall object with a unique id, the tool name, and the validated arguments.
 
+#call= { "name": "get_market_data","args": { "tickers": ["NVDA"], "metrics": ["pe_ratio", "market_cap"] } }
 def _to_planned_call(call: types.FunctionCall, index: int) -> PlannedToolCall | None:
     """Validate one function call, or drop it.
 
@@ -86,23 +90,19 @@ async def plan_query(query: str) -> QueryPlan:
     settings = get_settings()
     started = time.perf_counter()
 
-    try:
-        response = await get_client().aio.models.generate_content(
-            model=settings.gemini_model,
-            contents=query,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                max_output_tokens=MAX_TOKENS,
-                tools=[as_tool(TOOL_SCHEMAS)],
-                # We run the tools ourselves, concurrently, with our own
-                # timeouts and degradation. Left on, the SDK would try to
-                # invoke them itself and fail -- these are schemas, not
-                # callables.
-                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-            ),
-        )
-    except Exception as exc:
-        raise translate_error(exc) from exc
+    response = await generate(
+        contents=query,
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            max_output_tokens=MAX_TOKENS,
+            tools=[as_tool(TOOL_SCHEMAS)],
+            # We run the tools ourselves, concurrently, with our own timeouts
+            # and degradation. Left on, the SDK would try to invoke them itself
+            # and fail -- these are schemas, not callables.
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        ),
+        purpose="planning",
+    )
 
     tool_calls: list[PlannedToolCall] = []
     text_parts: list[str] = []
