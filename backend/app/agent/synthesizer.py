@@ -320,7 +320,7 @@ def _direct_report(plan: QueryPlan, generated_at: datetime) -> ResearchReport:
     """
     answer = (plan.direct_answer or "").strip()
     return ResearchReport(
-        summary=answer,
+        summary="",
         sections=[
             {
                 "title": "Answer",

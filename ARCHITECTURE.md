@@ -574,6 +574,29 @@ The system prompt supplies the selection policy:
 - If the question needs no company-specific data, call no tools and answer directly.
 - Resolve company names to tickers.
 
+**Observed selection.** Captured against `gemini-3.6-flash` on 2026-07-28;
+reproduce with `backend/scripts/dump_turn1.py`, which sends the same model,
+system prompt and tool schemas and prints the untouched response.
+
+| Query | Tools selected | Arguments the model produced |
+|---|---|---|
+| *What's the latest news on Tesla?* | `get_news_sentiment` | `tickers: ["TSLA"]` |
+| *What's NVIDIA's current P/E and market cap?* | `get_market_data` | `tickers: ["NVDA"]`, `metrics: ["pe_ratio", "market_cap"]` |
+| *Analyze NVIDIA's Q3 earnings, compare revenue growth with AMD and Intel, summarize competitive threats and news sentiment, give a risk assessment* | all three | `tickers: ["NVDA", "AMD", "INTC"]` on each; knowledge-base `query` rewritten to *"Q3 earnings financial results revenue growth Data Center competitive threats risk factors"* |
+| *What is a P/E ratio?* | none | — answered directly in a text part |
+
+Four properties are visible in that output and none of them are coded for: the
+news question never reaches the price feed; the optional `metrics` field is
+populated from the question rather than left to fetch everything; three
+companies arrive as one call per tool rather than three; and "Intel" is
+resolved to `INTC` by the model. The knowledge-base query is restated in filing
+vocabulary rather than echoing the analyst, which is what that tool's schema
+description asks for.
+
+Turn 1 costs roughly 1,300–1,600 tokens and 3–4s regardless of how many tools it
+selects — about 1,070 of those tokens are the system prompt and the three
+schemas, before the question is added.
+
 Each returned call is validated against its Pydantic input model. A malformed
 call is **dropped rather than fatal** — *"the remaining tools still produce a
 partial report."*

@@ -549,7 +549,7 @@ async def test_a_direct_answer_needs_no_second_call(respond_with) -> None:
     report = await synthesizer.synthesize(plan, ExecutionResult())
 
     assert recorder.calls == []
-    assert report.summary == "Price divided by earnings per share."
+    assert report.summary == ""
     assert report.sections[0].content == TextContent(text="Price divided by earnings per share.")
     assert report.partial is False
 
